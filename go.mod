@@ -13,6 +13,7 @@ require (
 	github.com/go-git/go-git/v5 v5.8.1
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
+	github.com/ipfs-shipyard/gomobile-ipfs/go v0.0.0
 	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/mattn/go-ieproxy v0.0.12
 	github.com/pkg/errors v0.9.1
@@ -137,3 +138,5 @@ require (
 	modernc.org/sqlite v1.33.1 // indirect
 	zombiezen.com/go/sqlite v1.4.0 // indirect
 )
+
+replace github.com/ipfs-shipyard/gomobile-ipfs/go => ./external/gomobile-ipfs/go

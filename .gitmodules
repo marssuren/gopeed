@@ -1,0 +1,3 @@
+[submodule "external/gomobile-ipfs"]
+	path = external/gomobile-ipfs
+	url = https://github.com/marssuren/gomobile-ipfs.git
