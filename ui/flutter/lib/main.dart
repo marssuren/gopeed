@@ -83,6 +83,25 @@ Future<void> init(Args args) async {
     final startCfg = controller.startConfig.value;
     controller.runningPort.value = await LibgopeedBoot.instance.start(startCfg);
     api.init(startCfg.network, controller.runningAddress(), startCfg.apiToken);
+
+    // IPFS
+    logger.i("Starting IPFS initialization...");
+    final String ipfsRepoPath = '${startCfg.storageDir}/ipfs-repo';
+    // 2. 初始化 IPFS 仓库 (如果不存在)
+    bool initSuccess = await LibgopeedBoot.instance.initIPFS(ipfsRepoPath);
+    if (initSuccess) {
+      logger.i("IPFS repo initialized or already exists.");
+
+      // 3. 启动 IPFS 节点
+      String peerId = await LibgopeedBoot.instance.startIPFS(ipfsRepoPath);
+      logger.i("IPFS node started successfully. Peer ID: $peerId");
+
+      // (可选) 将 Peer ID 保存到某个状态或控制器中，以便 UI 显示
+      // controller.ipfsPeerId.value = peerId;
+    } else {
+      // 如果 initIPFS 返回 false (理论上不应该，除非 Go 端明确返回)
+      logger.w("IPFS repo initialization reported failure.");
+    }
   } catch (e) {
     logger.e("libgopeed init fail", e);
   }

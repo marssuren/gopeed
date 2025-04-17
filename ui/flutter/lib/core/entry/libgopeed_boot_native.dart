@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:gopeed/core/common/ipfs/directory_entry.dart';
+import 'package:gopeed/core/common/ipfs/progress_info.dart';
 
 import '../../util/util.dart';
 import '../common/libgopeed_channel.dart';
@@ -45,5 +49,62 @@ class LibgopeedBootNative implements LibgopeedBoot {
   @override
   Future<void> stop() async {
     await _libgopeed.stop();
+  }
+
+
+  // IPFS
+  @override
+  Future<bool> initIPFS(String repoPath) {
+    // 将调用委托给内部的 _libgopeed 实例
+    return _libgopeed.initIPFS(repoPath);
+  }
+
+  @override
+  Future<String> startIPFS(String repoPath) {
+    // 将调用委托给内部的 _libgopeed 实例
+    return _libgopeed.startIPFS(repoPath);
+  }
+
+  @override
+  Future<void> stopIPFS() {
+    // 将调用委托给内部的 _libgopeed 实例
+    return _libgopeed.stopIPFS();
+  }
+
+  @override
+  Future<String> addFileToIPFS(String content) {
+    // 将调用委托给内部的 _libgopeed 实例
+    return _libgopeed.addFileToIPFS(content);
+  }
+
+  @override
+  Future<Uint8List> getFileFromIPFS(String cid) {
+    // 将调用委托给内部的 _libgopeed 实例
+    return _libgopeed.getFileFromIPFS(cid);
+  }
+
+  @override
+  Future<String> getIPFSPeerID() {
+    // 将调用委托给内部的 _libgopeed 实例
+    return _libgopeed.getIPFSPeerID();
+  }
+
+  
+  @override
+  Future<List<DirectoryEntry>> listDirectoryFromIPFS(String cid) {
+    // 将调用委托给内部的 _libgopeed 实例
+    return _libgopeed.listDirectoryFromIPFS(cid);
+  }
+
+  @override
+  Future<String> startDownloadSelected(String topCid, String localBasePath, List<String> selectedPaths) {
+    // 将调用委托给内部的 _libgopeed 实例
+    return _libgopeed.startDownloadSelected(topCid, localBasePath, selectedPaths);
+  }
+
+  @override
+  Future<ProgressInfo> queryDownloadProgress(String downloadID) {
+    // 将调用委托给内部的 _libgopeed 实例
+    return _libgopeed.queryDownloadProgress(downloadID);
   }
 }

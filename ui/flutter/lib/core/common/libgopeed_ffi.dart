@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
+import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
+import 'package:gopeed/core/common/ipfs/directory_entry.dart';
+import 'package:gopeed/core/common/ipfs/progress_info.dart';
 
 import '../ffi/libgopeed_bind.dart';
 import 'libgopeed_interface.dart';
@@ -33,5 +36,59 @@ class LibgopeedFFi implements LibgopeedInterface {
     _libgopeed.Stop();
     completer.complete();
     return completer.future;
+  }
+
+  @override
+  Future<String> addFileToIPFS(String content) {
+    // TODO: implement addFileToIPFS
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<Uint8List> getFileFromIPFS(String cid) {
+    // TODO: implement getFileFromIPFS
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<String> getIPFSPeerID() {
+    // TODO: implement getIPFSPeerID
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<bool> initIPFS(String repoPath) {
+    // TODO: implement initIPFS
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<String> startIPFS(String repoPath) {
+    // TODO: implement startIPFS
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> stopIPFS() {
+    // TODO: implement stopIPFS
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<DirectoryEntry>> listDirectoryFromIPFS(String cid) {
+    // TODO: implement listDirectoryFromIPFS
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ProgressInfo> queryDownloadProgress(String downloadID) {
+    // TODO: implement queryDownloadProgress
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<String> startDownloadSelected(String topCid, String localBasePath, List<String> selectedPaths) {
+    // TODO: implement startDownloadSelected
+    throw UnimplementedError();
   }
 }

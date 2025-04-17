@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:gopeed/core/libgopeed_boot.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path/path.dart' as path;
 
@@ -13,6 +14,7 @@ import '../controllers/task_downloaded_controller.dart';
 import '../controllers/task_downloading_controller.dart';
 import 'task_downloaded_view.dart';
 import 'task_downloading_view.dart';
+import '../../../../util/log_util.dart'; // 导入 logger
 
 class TaskView extends GetView<TaskController> {
   const TaskView({Key? key}) : super(key: key);
@@ -28,8 +30,10 @@ class TaskView extends GetView<TaskController> {
         appBar: PreferredSize(
             preferredSize: const Size.fromHeight(56),
             child: AppBar(
+
               bottom: TabBar(
-                tabs: const [
+                tabs: [
+
                   Tab(
                     icon: Icon(Icons.file_download),
                   ),
@@ -58,10 +62,11 @@ class TaskView extends GetView<TaskController> {
                 },
               ),
             )),
-        body: const TabBarView(
+        body: TabBarView(
           children: [
             TaskDownloadingView(),
             TaskDownloadedView(),
+
           ],
         ),
         endDrawer: Drawer(
@@ -117,7 +122,11 @@ class TaskView extends GetView<TaskController> {
       ),
     );
   }
+
+
 }
+
+
 
 extension TaskEnhance on Task {
   bool get isFolder {

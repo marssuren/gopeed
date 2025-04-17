@@ -6,6 +6,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:gopeed/core/libgopeed_boot.dart';
+import 'package:gopeed/util/log_util.dart';
 import 'package:path/path.dart' as path;
 import 'package:rounded_loading_button_plus/rounded_loading_button.dart';
 
@@ -650,6 +652,14 @@ class CreateView extends GetView<CreateController> {
                                 child: Text('confirm'.tr),
                               ),
                             ),
+                            IconButton(
+                              icon: const Icon(Icons.cloud_download_outlined), // 选择一个合适的图标
+                              tooltip: 'Test IPFS Download',
+                              onPressed: (){
+                                // 点击按钮时显示对话框
+                                _showIpfsDownloadDialog(context);
+                              },
+                            ),
                           ],
                         ),
                       ),
@@ -661,6 +671,16 @@ class CreateView extends GetView<CreateController> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showIpfsDownloadDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        // 使用 StatefulWidget 来管理 TextEditingController
+        return const IpfsDownloadDialog();
+      },
     );
   }
 
@@ -912,5 +932,118 @@ class CreateView extends GetView<CreateController> {
                 ),
               ],
             ));
+  }
+}
+
+
+// --- 创建一个新的 StatefulWidget 作为对话框内容 ---
+class IpfsDownloadDialog extends StatefulWidget {
+  const IpfsDownloadDialog({Key? key}) : super(key: key);
+
+  @override
+  State<IpfsDownloadDialog> createState() => _IpfsDownloadDialogState();
+}
+
+class _IpfsDownloadDialogState extends State<IpfsDownloadDialog> {
+  final TextEditingController _cidController = TextEditingController();
+  bool _isLoading = false;
+  String? _resultMessage; // 用于显示结果或错误
+
+  @override
+  void initState() {
+    super.initState();
+    _cidController.text = "QmZULkCELmmk5XNfCgTnCyFgAVxBRBXyDHGGMVoLFLiXEN";
+  }
+
+  @override
+  void dispose() {
+    _cidController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _downloadIpfsFile() async {
+    final cid = _cidController.text.trim();
+    if (cid.isEmpty) {
+      setState(() {
+        _resultMessage = "Please enter a CID.";
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _resultMessage = null; // 清除旧消息
+    });
+
+    try {
+      logger.i("Attempting to download CID via IPFS: $cid");
+      final fileContent = await LibgopeedBoot.instance.getFileFromIPFS(cid);
+      logger.i("Successfully downloaded content for CID $cid");
+      setState(() {
+        _isLoading = false;
+        // 为了简洁，我们只显示部分内容或成功消息
+        _resultMessage =
+        "Download successful!\nContent (partial): ${fileContent.substring(0, fileContent.length > 100 ? 100 : fileContent.length)}...";
+      });
+      // 你也可以在这里关闭对话框并把内容传递出去，或者直接显示完整内容
+      // Navigator.of(context).pop(fileContent);
+    } catch (e) {
+      logger.e("Failed to download content for CID $cid", e);
+      setState(() {
+        _isLoading = false;
+        _resultMessage = "Download failed:\n$e";
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Test IPFS Download'),
+      content: SingleChildScrollView(
+        // 防止内容过多时溢出
+        child: Column(
+          mainAxisSize: MainAxisSize.min, // 让对话框大小适应内容
+          children: <Widget>[
+            TextField(
+              controller: _cidController,
+              decoration: const InputDecoration(
+                labelText: 'Enter IPFS CID',
+                hintText:
+                'e.g., QmZULkCELmmk5XNfCgTnCyFgAVxBRBXyDHGGMVoLFLiXEN',
+              ),
+              enabled: !_isLoading, // 加载时禁用输入框
+            ),
+            const SizedBox(height: 20),
+            if (_isLoading)
+              const CircularProgressIndicator() // 显示加载指示器
+            else if (_resultMessage != null)
+              Text(
+                // 显示结果或错误信息
+                _resultMessage!,
+                style: TextStyle(
+                    color: _resultMessage!.startsWith("Download failed")
+                        ? Colors.red
+                        : Colors.green),
+              ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          child: const Text('Cancel'),
+          onPressed: _isLoading
+              ? null
+              : () {
+            // 加载时禁用按钮
+            Navigator.of(context).pop(); // 关闭对话框
+          },
+        ),
+        ElevatedButton(
+          child: const Text('Download'),
+          onPressed: _isLoading ? null : _downloadIpfsFile, // 加载时禁用按钮
+        ),
+      ],
+    );
   }
 }
