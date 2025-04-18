@@ -274,40 +274,33 @@ func GetFileFromIPFS(cid string) ([]byte, error) { // <--- 返回类型修改为
 	return contentBytes, nil // <--- 直接返回 []byte
 }
 
-// ListDirectoryFromIPFS 列出指定 CID 对应的目录内容 (使用 LsIter)
-func ListDirectoryFromIPFS(cid string) ([]DirectoryEntry, error) {
+// ListDirectoryFromIPFS 列出指定 CID 对应的目录内容，返回 JSON 字符串
+func ListDirectoryFromIPFS(cid string) (string, error) { // <--- 返回类型改为 string
 	if ipfsNode == nil {
-		return nil, fmt.Errorf("IPFS node is not running")
+		return "", fmt.Errorf("IPFS node is not running")
 	}
 
 	api, err := coreapi.NewCoreAPI(ipfsNode.IpfsNode)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get CoreAPI: %w", err)
+		return "", fmt.Errorf("failed to get CoreAPI: %w", err)
 	}
 
 	p, err := ipfspath.NewPath("/ipfs/" + cid)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create IPFS path: %w", err)
+		return "", fmt.Errorf("failed to create IPFS path: %w", err)
 	}
 
-	// 依然先解析路径
 	resolvedPath, _, err := api.ResolvePath(ipfsContext, p)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve IPFS path %s: %w", p, err)
+		return "", fmt.Errorf("failed to resolve IPFS path %s: %w", p, err)
 	}
 
-	// --- 使用 LsIter 辅助函数 ---
 	entries := make([]DirectoryEntry, 0)
-	// 调用 LsIter，它返回一个 Go 迭代器
 	for item, err := range coreiface.LsIter(ipfsContext, api.Unixfs(), resolvedPath) {
-		// LsIter 会在每次迭代时返回一个条目和一个错误
 		if err != nil {
-			// 如果迭代过程中发生错误，立即返回
-			// 错误可能来自底层的 Ls 调用或 channel 通信
-			return nil, fmt.Errorf("error listing directory %s: %w", resolvedPath, err)
+			return "", fmt.Errorf("error listing directory %s: %w", resolvedPath, err)
 		}
 
-		// 处理获取到的条目 item (类型是 iface.DirEntry)
 		entryType := "unknown"
 		switch item.Type {
 		case coreiface.TFile:
@@ -323,9 +316,14 @@ func ListDirectoryFromIPFS(cid string) ([]DirectoryEntry, error) {
 			Size: int64(item.Size),
 		})
 	}
-	// --- 迭代结束 ---
 
-	return entries, nil
+	// 将结果序列化为 JSON 字符串
+	jsonData, err := json.Marshal(entries)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal directory entries to JSON: %w", err)
+	}
+
+	return string(jsonData), nil // <--- 返回 JSON 字符串
 }
 
 // DownloadAndSaveFile: 流式下载单个文件到本地，并记录进度
@@ -481,22 +479,21 @@ func DownloadAndSaveFile(cid string, localFilePath string, downloadID string) er
 	return nil // 下载并保存成功
 }
 
-// QueryDownloadProgress: 查询指定下载任务的进度信息
-func QueryDownloadProgress(downloadID string) (ProgressInfo, error) {
+// QueryDownloadProgress: 查询指定下载任务的进度信息，返回 JSON 字符串
+func QueryDownloadProgress(downloadID string) (string, error) { // <--- 返回类型改为 string
 	val, ok := downloadProgressMap.Load(downloadID)
 	if !ok {
-		return ProgressInfo{}, fmt.Errorf("download ID %s not found or already cleaned up", downloadID)
+		// 对于 gomobile，返回空字符串和错误可能更清晰
+		return "", fmt.Errorf("download ID %s not found or already cleaned up", downloadID)
 	}
 	progress := val.(*DownloadProgress)
 
-	// 计算已用时间
 	elapsedTime := time.Since(progress.StartTime)
 	elapsedSeconds := elapsedTime.Seconds()
-	if elapsedSeconds < 0.01 { // 避免除以零或极小值
+	if elapsedSeconds < 0.01 {
 		elapsedSeconds = 0.01
 	}
 
-	// 计算平均速度 (Bytes per second)
 	speedBps := float64(progress.BytesRetrieved) / elapsedSeconds
 
 	info := ProgressInfo{
@@ -505,16 +502,17 @@ func QueryDownloadProgress(downloadID string) (ProgressInfo, error) {
 		SpeedBps:       speedBps,
 		ElapsedTimeSec: elapsedSeconds,
 		IsCompleted:    progress.IsCompleted,
-		HasError:       progress.ErrorMessage != "",
+		HasError:       progress.ErrorMessage != "", // 直接计算 HasError
 		ErrorMessage:   progress.ErrorMessage,
 	}
 
-	// 可选：如果任务已完成或出错，可以考虑从 Map 中移除
-	// if info.IsCompleted || info.HasError {
-	//     downloadProgressMap.Delete(downloadID)
-	// }
+	// 将结果序列化为 JSON 字符串
+	jsonData, err := json.Marshal(info)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal progress info to JSON: %w", err)
+	}
 
-	return info, nil
+	return string(jsonData), nil // <--- 返回 JSON 字符串
 }
 
 // downloadRecursiveHelper: 内部递归辅助函数
@@ -522,18 +520,29 @@ func QueryDownloadProgress(downloadID string) (ProgressInfo, error) {
 // selectedPaths: key 是相对于 topCid 的完整相对路径
 func downloadRecursiveHelper(currentCid string, localCurrentPath string, currentRelativeDir string, selectedPaths map[string]bool, downloadIDPrefix string) error {
 
-	entries, err := ListDirectoryFromIPFS(currentCid)
+	// ListDirectoryFromIPFS 现在返回 JSON 字符串
+	entriesJson, err := ListDirectoryFromIPFS(currentCid)
 	if err != nil {
 		// 如果当前 CID 不是目录或列出失败，记录错误并可能停止这个分支
 		fmt.Printf("Error listing directory %s (%s): %v\n", currentRelativeDir, currentCid, err)
 		return err // 返回错误，让上层决定如何处理
 	}
 
+	// --- 反序列化 JSON ---
+	var entries []DirectoryEntry
+	if err := json.Unmarshal([]byte(entriesJson), &entries); err != nil {
+		// 处理 JSON 反序列化错误
+		fmt.Printf("Error unmarshaling directory entries for %s: %v\n", currentCid, err)
+		return fmt.Errorf("failed to parse directory listing for %s: %w", currentCid, err)
+	}
+	// --- ---
+
 	// 确保当前本地目录存在
 	if err := os.MkdirAll(localCurrentPath, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", localCurrentPath, err)
 	}
 
+	// 现在迭代反序列化后的 entries
 	for _, entry := range entries {
 		// --- 构造条目的相对路径和本地路径 ---
 		entryRelativePath := filepath.Join(currentRelativeDir, entry.Name) // 使用 filepath.Join 更安全
