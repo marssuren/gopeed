@@ -632,16 +632,24 @@ func checkSelection(currentRelativePath string, isDirectory bool, selectedPaths 
 }
 
 // StartDownloadSelected: 启动下载任务的入口函数 (导出)
-func StartDownloadSelected(topCid string, localBasePath string, selectedPaths []string) (string, error) {
+// selectedPathsJson: 包含 ["path1", "path2"] 格式的 JSON 字符串
+func StartDownloadSelected(topCid string, localBasePath string, selectedPathsJson string) (string, error) { // <--- 修改参数类型
 	if ipfsNode == nil {
 		return "", fmt.Errorf("IPFS node is not running")
 	}
+
+	// --- 反序列化 selectedPaths ---
+	var selectedPaths []string
+	if err := json.Unmarshal([]byte(selectedPathsJson), &selectedPaths); err != nil {
+		return "", fmt.Errorf("failed to parse selected paths JSON: %w", err)
+	}
+	// --- ---
 
 	// 检查 localBasePath 是否有效 (例如，是否是绝对路径，是否有权限等)
 	// ...
 
 	selectedMap := make(map[string]bool)
-	for _, p := range selectedPaths {
+	for _, p := range selectedPaths { // 使用反序列化后的 selectedPaths
 		// 规范化路径分隔符，以匹配 filepath.Join 的结果
 		cleanPath := filepath.Clean(strings.ReplaceAll(p, "/", string(filepath.Separator)))
 		selectedMap[cleanPath] = true
