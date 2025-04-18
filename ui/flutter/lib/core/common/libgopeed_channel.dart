@@ -72,6 +72,18 @@ class LibgopeedChannel implements LibgopeedInterface {
   }
 
   @override
+  Future<String> addFileToIPFS2(String content) async {
+    try {
+      final String? cid =
+          await _channel.invokeMethod('addFileToIPFS2', {'content': content});
+      return cid ?? (throw Exception("Failed to get CID from native"));
+    } on PlatformException catch (e) {
+      print("Error adding file to IPFS: ${e.code} - ${e.message}");
+      rethrow;
+    }
+  }
+
+  @override
   Future<Uint8List> getFileFromIPFS(String cid) async {
     try {
       final Uint8List? fileContent =
