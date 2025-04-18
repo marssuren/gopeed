@@ -45,12 +45,6 @@ class LibgopeedFFi implements LibgopeedInterface {
   }
 
   @override
-  Future<String> addFileToIPFS2(String content) {
-    // TODO: implement addFileToIPFS
-    throw UnimplementedError();
-  }
-
-  @override
   Future<Uint8List> getFileFromIPFS(String cid) {
     // TODO: implement getFileFromIPFS
     throw UnimplementedError();

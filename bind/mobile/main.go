@@ -205,30 +205,6 @@ func AddFileToIPFS(content string) (string, error) {
 	return path.String(), nil
 }
 
-// AddFileToIPFS 添加文件内容到IPFS
-func AddFileToIPFS2(content string) (string, error) {
-	if ipfsNode == nil {
-		return "", nil
-	}
-
-	// 获取API
-	api, err := coreapi.NewCoreAPI(ipfsNode.IpfsNode)
-	if err != nil {
-		return "", err
-	}
-
-	// 创建一个内存中的文件
-	r := strings.NewReader(content)
-	fileNode := files.NewReaderFile(r)
-
-	// 添加到IPFS
-	path, err := api.Unixfs().Add(ipfsContext, fileNode, options.Unixfs.Pin(true))
-	if err != nil {
-		return "", err
-	}
-
-	return path.String(), nil
-}
 
 // GetFileFromIPFS 从IPFS获取文件内容 (返回 []byte)
 func GetFileFromIPFS(cid string) ([]byte, error) { // <--- 返回类型修改为 []byte

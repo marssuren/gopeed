@@ -78,12 +78,6 @@ class LibgopeedBootNative implements LibgopeedBoot {
   }
 
   @override
-  Future<String> addFileToIPFS2(String content) {
-    // 将调用委托给内部的 _libgopeed 实例
-    return _libgopeed.addFileToIPFS(content);
-  }
-
-  @override
   Future<Uint8List> getFileFromIPFS(String cid) {
     // 将调用委托给内部的 _libgopeed 实例
     return _libgopeed.getFileFromIPFS(cid);

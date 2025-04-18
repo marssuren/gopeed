@@ -26,7 +26,6 @@ abstract class LibgopeedBoot {
   Future<String> startIPFS(String repoPath);
   Future<void> stopIPFS();
   Future<String> addFileToIPFS(String content);
-  Future<String> addFileToIPFS2(String content);
   Future<Uint8List> getFileFromIPFS(String cid);
   Future<String> getIPFSPeerID();
 
