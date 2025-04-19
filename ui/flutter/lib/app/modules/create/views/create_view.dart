@@ -11,6 +11,10 @@ import 'package:gopeed/core/libgopeed_boot.dart';
 import 'package:gopeed/util/log_util.dart';
 import 'package:path/path.dart' as path;
 import 'package:rounded_loading_button_plus/rounded_loading_button.dart';
+import 'package:path_provider/path_provider.dart'; 
+import 'dart:io'; 
+import 'dart:async'; // 导入 Timer
+import 'dart:convert'; // 导入 jsonDecode
 
 import '../../../../api/api.dart';
 import '../../../../api/model/create_task.dart';
@@ -32,6 +36,7 @@ import '../../history/views/history_view.dart';
 import '../controllers/create_controller.dart';
 import '../dto/create_router_params.dart';
 import '../../../../core/common/ipfs/directory_entry.dart';  // 添加DirectoryEntry引用
+import '../../../../core/common/ipfs/progress_info.dart'; // 导入 ProgressInfo
 
 class CreateView extends GetView<CreateController> {
   final _confirmFormKey = GlobalKey<FormState>();
@@ -682,6 +687,21 @@ class CreateView extends GetView<CreateController> {
                                 ),
                               ],
                             ),
+                            // 新增按钮：测试单文件保存
+                            Padding(
+                              padding: const EdgeInsets.only(top: 10.0), // 加一点间距
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.save_alt),
+                                label: Text('单文件保存测试'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () {
+                                  _showSingleFileSaveDialog(context);
+                                },
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -964,6 +984,17 @@ class CreateView extends GetView<CreateController> {
               ],
             ));
   }
+
+  // --- 新增：显示单文件保存测试对话框 ---
+  void _showSingleFileSaveDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // 下载时不允许点击外部关闭
+      builder: (BuildContext dialogContext) {
+        return const SingleFileSaveDialog(); // 指向我们即将创建的 Dialog Widget
+      },
+    );
+  }
 }
 
 
@@ -1221,7 +1252,7 @@ class _IpfsDownloadDialogState extends State<IpfsDownloadDialog> {
   }
 }
 
-// --- 单文件下载测试对话框 ---
+// --- 单文件下载测试对话框 (内存) ---
 class SimpleFileDownloadDialog extends StatefulWidget {
   const SimpleFileDownloadDialog({Key? key}) : super(key: key);
 
@@ -1335,6 +1366,263 @@ class _SimpleFileDownloadDialogState extends State<SimpleFileDownloadDialog> {
         ElevatedButton(
           child: const Text('下载'),
           onPressed: _isLoading ? null : _downloadIpfsFile,
+        ),
+      ],
+    );
+  }
+}
+
+// --- 单文件保存测试对话框 ---
+class SingleFileSaveDialog extends StatefulWidget {
+  const SingleFileSaveDialog({Key? key}) : super(key: key);
+
+  @override
+  State<SingleFileSaveDialog> createState() => _SingleFileSaveDialogState();
+}
+
+class _SingleFileSaveDialogState extends State<SingleFileSaveDialog> {
+  final TextEditingController _cidController = TextEditingController();
+  final TextEditingController _pathController = TextEditingController();
+  final TextEditingController _downloadIdController = TextEditingController();
+
+  bool _isLoading = false;
+  String? _statusMessage;
+  ProgressInfo? _progressInfo;
+  Timer? _timer;
+  String _defaultSaveDir = ''; // 用于存储默认路径
+
+  @override
+  void initState() {
+    super.initState();
+    // 设置默认值
+    _cidController.text = "QmZULkCELmmk5XNfCgTnCyFgAVxBRBXyDHGGMVoLFLiXEN"; // 使用单文件 CID
+    _downloadIdController.text = "ipfs-save-test-${DateTime.now().millisecondsSinceEpoch}"; // 新的ID前缀
+    _loadDefaultSavePath();
+  }
+
+  // 获取默认保存路径
+  Future<void> _loadDefaultSavePath() async {
+    try {
+      // 优先使用下载目录，其次临时目录
+      Directory? directory = await getDownloadsDirectory();
+      directory ??= await getTemporaryDirectory();
+      if (directory != null) {
+        final String dirPath = directory.path;
+        if (mounted) { // 检查 widget 是否挂载
+          setState(() {
+            _defaultSaveDir = dirPath;
+            // 设置默认文件名
+            if (_pathController.text.isEmpty) {
+               _pathController.text = path.join(dirPath, "ipfs_save_test_file"); // 新的默认文件名
+            }
+          });
+        }
+      }
+    } catch (e) {
+      print("获取默认保存路径失败: $e");
+      if (mounted) {
+         setState(() {
+           _statusMessage = "获取默认保存路径失败: $e";
+         });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _cidController.dispose();
+    _pathController.dispose();
+    _downloadIdController.dispose();
+    _timer?.cancel(); // 停止计时器
+    super.dispose();
+  }
+
+  // 开始下载
+  Future<void> _startDownload() async {
+    final cid = _cidController.text.trim();
+    final localPath = _pathController.text.trim();
+    final downloadID = _downloadIdController.text.trim();
+
+    if (cid.isEmpty || localPath.isEmpty || downloadID.isEmpty) {
+      setState(() {
+        _statusMessage = "请输入 CID、保存路径和下载 ID。";
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _statusMessage = "开始下载...";
+      _progressInfo = null; // 重置进度
+      _timer?.cancel(); // 取消旧的计时器
+    });
+
+    try {
+      logger.i("调用 downloadAndSaveFile: CID=$cid, Path=$localPath, ID=$downloadID");
+      // 调用 Go 函数开始下载 (不直接等待完成)
+      await LibgopeedBoot.instance.downloadAndSaveFile(cid, localPath, downloadID);
+      logger.i("downloadAndSaveFile 调用成功，开始查询进度: ID=$downloadID");
+       if (!mounted) return;
+      setState(() {
+        _statusMessage = "下载已启动，正在查询进度...";
+      });
+      // 启动定时器查询进度
+      _startProgressTimer(downloadID);
+    } catch (e, stacktrace) {
+      logger.e("启动下载失败: ID=$downloadID", e, stacktrace);
+      if (mounted) {
+          setState(() {
+            _isLoading = false;
+            if (e is PlatformException) {
+                _statusMessage = "启动下载失败:\nCode: ${e.code}\nMessage: ${e.message}";
+            } else {
+               _statusMessage = "启动下载失败:\n${e.toString()}";
+            }
+            _timer?.cancel();
+          });
+      }
+    }
+  }
+
+  // 启动进度查询定时器
+  void _startProgressTimer(String downloadID) {
+    _timer?.cancel(); // 先取消可能存在的旧计时器
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted) { // 检查 Widget 是否还在树中
+         timer.cancel();
+         return;
+      }
+      try {
+        // 调用 queryDownloadProgress 获取 JSON 字符串
+        final String progressJson = await LibgopeedBoot.instance.queryDownloadProgress(downloadID);
+        // 解析 JSON
+        final Map<String, dynamic> decodedMap = jsonDecode(progressJson);
+        // 转换为 ProgressInfo 对象
+        final ProgressInfo currentProgress = ProgressInfo.fromJson(decodedMap);
+
+        logger.d("查询进度: ID=$downloadID, Progress: $currentProgress");
+
+        if (!mounted) return; // 再次检查
+
+        setState(() {
+          _progressInfo = currentProgress;
+          if (currentProgress.isCompleted) {
+            _statusMessage = "下载完成！保存在: ${_pathController.text.trim()}";
+            _isLoading = false;
+            timer.cancel();
+          } else if (currentProgress.hasError) {
+            _statusMessage = "下载出错: ${currentProgress.errorMessage}";
+            _isLoading = false;
+            timer.cancel();
+          } else {
+             _statusMessage = "下载中...";
+          }
+        });
+      } catch (e, stacktrace) {
+        // 查询进度失败也需要处理
+        logger.w("查询进度失败: ID=$downloadID", e, stacktrace);
+        if (mounted) {
+           setState(() {
+               if (e is PlatformException) {
+                  _statusMessage = "查询进度失败:\nCode: ${e.code}\nMessage: ${e.message}";
+               } else {
+                  _statusMessage = "查询进度失败: ${e.toString()}";
+               }
+              // 可以在这里添加逻辑：如果连续几次查询失败，则停止计时器
+              // 例如：if (consecutiveFailures > 5) timer.cancel();
+           });
+        } else {
+           timer.cancel();
+        }
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('单文件保存测试'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            TextField(
+              controller: _cidController,
+              decoration: const InputDecoration(
+                labelText: 'IPFS 文件 CID',
+                hintText: '例如 QmZULk...LFLiXEN',
+              ),
+              enabled: !_isLoading,
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _pathController,
+              decoration: InputDecoration(
+                labelText: '本地保存路径 (含文件名)',
+                hintText: _defaultSaveDir.isEmpty ? '等待加载默认路径...' : '例如 ${_defaultSaveDir}/ipfs_save_test_file',
+              ),
+              enabled: !_isLoading,
+            ),
+             const SizedBox(height: 10),
+            TextField(
+              controller: _downloadIdController,
+              decoration: const InputDecoration(
+                labelText: '下载 ID (唯一标识)',
+                hintText: '例如 ipfs-save-test-123',
+              ),
+              enabled: !_isLoading,
+            ),
+            const SizedBox(height: 20),
+            if (_isLoading)
+              Column(
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 10),
+                  if(_progressInfo != null && _progressInfo!.totalBytes > 0)
+                    LinearProgressIndicator(
+                      // 处理 totalBytes 可能为 -1 (未知大小) 的情况
+                      value: (_progressInfo!.totalBytes > 0) 
+                             ? _progressInfo!.bytesRetrieved / _progressInfo!.totalBytes 
+                             : null, // 大小未知时显示不确定进度条
+                      minHeight: 10,
+                    ),
+                   if(_progressInfo != null)
+                     Text( // 显示进度详情
+                       // 处理 totalBytes 为 -1 的显示
+                       _progressInfo!.totalBytes > 0 
+                       ? '${_progressInfo!.bytesRetrieved} / ${_progressInfo!.totalBytes} (${(_progressInfo!.bytesRetrieved * 100 / _progressInfo!.totalBytes).toStringAsFixed(1)}%) - ${_progressInfo!.speedBps.toStringAsFixed(2)} B/s'
+                       : '${_progressInfo!.bytesRetrieved} / ??? - ${_progressInfo!.speedBps.toStringAsFixed(2)} B/s',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      )
+                ],
+              ),
+            if (_statusMessage != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 10.0),
+                child: Text(
+                  _statusMessage!,
+                  style: TextStyle(
+                      color: _statusMessage!.contains("失败") || _statusMessage!.contains("出错") // 调整判断条件
+                          ? Colors.red
+                          : Colors.green),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          child: const Text('取消'),
+          onPressed: _isLoading
+              ? null // 下载中不允许取消 (简单处理，也可实现取消逻辑)
+              : () {
+                  _timer?.cancel();
+                  Navigator.of(context).pop();
+                },
+        ),
+        ElevatedButton(
+          child: const Text('开始下载'),
+          onPressed: _isLoading ? null : _startDownload,
         ),
       ],
     );

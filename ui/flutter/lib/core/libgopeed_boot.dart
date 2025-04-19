@@ -32,4 +32,6 @@ abstract class LibgopeedBoot {
   Future<String> listDirectoryFromIPFS(String cid);
   Future<String> startDownloadSelected(String topCid, String localBasePath, String selectedPathsJson);
   Future<String> queryDownloadProgress(String downloadID);
+
+  Future<void> downloadAndSaveFile(String cid, String localFilePath, String downloadID);
 }

@@ -143,4 +143,21 @@ class LibgopeedChannel implements LibgopeedInterface {
       rethrow;
     }
   }
+
+  // 实现 downloadAndSaveFile 方法
+  @override
+  Future<void> downloadAndSaveFile(
+      String cid, String localFilePath, String downloadID) async {
+    try {
+      // 调用原生方法，它不返回数据，但可能抛出异常
+      await _channel.invokeMethod('downloadAndSaveFile', {
+        'cid': cid,
+        'localFilePath': localFilePath,
+        'downloadID': downloadID,
+      });
+    } on PlatformException catch (e) {
+      print("Error downloading and saving file: ${e.code} - ${e.message}");
+      rethrow;
+    }
+  }
 }

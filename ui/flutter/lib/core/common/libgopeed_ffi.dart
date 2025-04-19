@@ -91,4 +91,10 @@ class LibgopeedFFi implements LibgopeedInterface {
     // TODO: implement startDownloadSelected
     throw UnimplementedError();
   }
+
+  @override
+  Future<void> downloadAndSaveFile(String cid, String localFilePath, String downloadID) {
+    // TODO: implement downloadAndSaveFile
+    throw UnimplementedError();
+  }
 }

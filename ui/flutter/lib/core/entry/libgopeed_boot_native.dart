@@ -108,4 +108,11 @@ class LibgopeedBootNative implements LibgopeedBoot {
     // 将调用委托给内部的 _libgopeed 实例
     return _libgopeed.queryDownloadProgress(downloadID);
   }
+
+  // 添加 downloadAndSaveFile 方法实现
+  @override
+  Future<void> downloadAndSaveFile(String cid, String localFilePath, String downloadID) {
+    // 将调用委托给内部的 _libgopeed 实例
+    return _libgopeed.downloadAndSaveFile(cid, localFilePath, downloadID);
+  }
 }

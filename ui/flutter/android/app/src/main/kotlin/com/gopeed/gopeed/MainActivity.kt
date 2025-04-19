@@ -177,6 +177,12 @@ class MainActivity : FlutterActivity() {
                         try {
                             // 调用 Go 函数，现在返回 JSON 字符串
                             val jsonString = Libgopeed.queryDownloadProgress(downloadID)
+                            Log.d("GoPeedDebug", "Got progress JSON from Go: $jsonString") // 添加日志
+
+                            // 直接将从 Go 获取的 JSON 字符串发送回 Dart
+                            result.success(jsonString)
+
+                            /* --- 不再需要在 Kotlin 端解析 ---
                             // 解析 JSON 字符串为 Map<String, Any?>
                             val jsonObj = JSONObject(jsonString)
                             val resultMap = mutableMapOf<String, Any?>()
@@ -190,15 +196,39 @@ class MainActivity : FlutterActivity() {
                             resultMap["bytesRetrieved"] = jsonObj.getLong("bytesRetrieved")
                             resultMap["speedBps"] = jsonObj.getDouble("speedBps")
                             resultMap["elapsedTimeSec"] = jsonObj.getDouble("elapsedTimeSec")
-
-                            result.success(resultMap)
+                            result.success(resultMap) 
+                            --- */
                         } catch (e: Exception) {
+                            Log.e("GoPeedDebug", "Error in queryDownloadProgress: ${e.localizedMessage}", e) // 添加日志
                             result.error("IPFS_QUERY_PROGRESS_ERROR", e.localizedMessage ?: "查询进度失败", e.toString()) // 添加详细错误信息
                         }
                     } else {
                         result.error("INVALID_ARGS", "queryDownloadProgress 缺少 downloadID 参数", null)
                     }
                 }
+
+                // --- 新增：处理 downloadAndSaveFile ---
+                "downloadAndSaveFile" -> {
+                    val cid = call.argument<String>("cid")
+                    val localFilePath = call.argument<String>("localFilePath")
+                    val downloadID = call.argument<String>("downloadID")
+
+                    if (cid != null && localFilePath != null && downloadID != null) {
+                        try {
+                            // 调用 Go 函数，该函数返回 error (在 Kotlin 中表现为可能抛出异常)
+                            Libgopeed.downloadAndSaveFile(cid, localFilePath, downloadID)
+                            // 如果 Go 函数没有抛出异常，则表示调用成功 (即使下载可能仍在后台进行)
+                            result.success(null) 
+                        } catch (e: Exception) {
+                            // 如果 Go 函数返回了 error，会被包装成 Exception 抛出
+                            Log.e("GoPeedDebug", "Error calling downloadAndSaveFile: ${e.localizedMessage}", e)
+                            result.error("IPFS_DOWNLOAD_SAVE_ERROR", e.localizedMessage ?: "调用下载保存失败", e.toString())
+                        }
+                    } else {
+                        result.error("INVALID_ARGS", "downloadAndSaveFile 缺少参数 (cid, localFilePath, or downloadID)", null)
+                    }
+                }
+                // --- ---
 
                 // --- 默认情况 ---
                 else -> {
