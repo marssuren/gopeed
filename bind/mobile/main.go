@@ -73,6 +73,15 @@ type progressWriter struct {
 	written    int64 // 原子更新或使用互斥锁保证并发安全（io.Copy 在单个 goroutine 中调用，暂时不用锁）
 }
 
+// NodeInfo 用于统一返回文件或目录的信息
+type NodeInfo struct {
+	Cid     string            `json:"cid"`     // 输入的 CID
+	Type    string            `json:"type"`    // "file" 或 "directory" 或 "unknown"
+	Size    int64             `json:"size"`    // 文件大小 (如果类型是 "file")
+	Entries *[]DirectoryEntry `json:"entries"` // 目录条目列表 (如果类型是 "directory", 使用指针以允许 null)
+	Error   string            `json:"error"`   // 如果解析或获取信息时出错
+}
+
 // --- 为 progressWriter 添加 Write 方法以实现 io.Writer ---
 func (pw *progressWriter) Write(p []byte) (n int, err error) {
 	n = len(p) // 假设写入总是成功，实际写入由 MultiWriter 的其他 Writer (outFile) 处理
@@ -204,7 +213,6 @@ func AddFileToIPFS(content string) (string, error) {
 
 	return path.String(), nil
 }
-
 
 // GetFileFromIPFS 从IPFS获取文件内容 (返回 []byte)
 func GetFileFromIPFS(cid string) ([]byte, error) { // <--- 返回类型修改为 []byte
@@ -650,6 +658,103 @@ func StartDownloadSelected(topCid string, localBasePath string, selectedPathsJso
 	}()
 
 	return downloadTaskIDPrefix, nil // 立即返回任务前缀
+}
+
+// GetIpfsNodeInfo 获取指定 CID 节点的信息 (类型、大小或目录内容)
+// 返回包含节点信息的 JSON 字符串
+func GetIpfsNodeInfo(cid string) string { // 直接返回 JSON string，简化 gomobile 处理
+	info := NodeInfo{Cid: cid, Type: "unknown"} // 初始化
+
+	if ipfsNode == nil {
+		info.Error = "IPFS node is not running"
+		jsonData, _ := json.Marshal(info) // 忽略 marshal 错误，因为结构简单
+		return string(jsonData)
+	}
+
+	api, err := coreapi.NewCoreAPI(ipfsNode.IpfsNode)
+	if err != nil {
+		info.Error = fmt.Sprintf("failed to get CoreAPI: %s", err)
+		jsonData, _ := json.Marshal(info)
+		return string(jsonData)
+	}
+
+	p, err := ipfspath.NewPath("/ipfs/" + cid)
+	if err != nil {
+		info.Error = fmt.Sprintf("failed to create IPFS path: %s", err)
+		jsonData, _ := json.Marshal(info)
+		return string(jsonData)
+	}
+
+	// 解析路径以获取节点对象，这里我们不关心解析后的最终路径，只关心节点本身
+	node, err := api.ResolveNode(ipfsContext, p)
+	if err != nil {
+		info.Error = fmt.Sprintf("failed to resolve IPFS node for path %s: %s", p, err)
+		jsonData, _ := json.Marshal(info)
+		return string(jsonData)
+	}
+
+	// --- 判断节点类型 ---
+	switch node.(type) {
+	case files.File:
+		info.Type = "file"
+		f := node.(files.File)
+		size, err := f.Size()
+		if err != nil {
+			// 文件大小未知也算一种信息，不直接报错返回
+			info.Size = -1 // 标记大小未知
+			info.Error = fmt.Sprintf("failed to get file size: %s", err)
+		} else {
+			info.Size = size
+		}
+	case files.Directory:
+		info.Type = "directory"
+		// 直接调用我们现有的 ListDirectoryFromIPFS (它现在返回 JSON string)
+		// 注意：这里的错误处理需要小心，因为 ListDirectoryFromIPFS 内部错误会返回错误信息
+		// 而 ResolveNode 成功意味着它 *是* 一个目录
+		// 为了获取 entries，我们最好重新实现 ListDirectoryFromIPFS 的核心逻辑
+
+		// --- (重新实现 ListDirectoryFromIPFS 核心逻辑) ---
+		entries := make([]DirectoryEntry, 0)
+		resolvedPath, err := api.ResolvePath(ipfsContext, p) // 再次解析以获取可用于 Ls 的路径
+		if err != nil {
+			info.Error = fmt.Sprintf("failed to resolve path for listing %s: %s", p, err)
+			break // 跳出 switch
+		}
+
+		for item, err := range coreiface.LsIter(ipfsContext, api.Unixfs(), resolvedPath) {
+			if err != nil {
+				info.Error = fmt.Sprintf("error listing directory %s: %s", resolvedPath, err)
+				// 清空可能已部分填充的 entries，因为列表不完整
+				entries = nil
+				break // 跳出 for 循环
+			}
+			entryType := "unknown"
+			switch item.Type {
+			case coreiface.TFile:
+				entryType = "file"
+			case coreiface.TDirectory:
+				entryType = "directory"
+			}
+			entries = append(entries, DirectoryEntry{
+				Name: item.Name,
+				Cid:  item.Cid.String(),
+				Type: entryType,
+				Size: int64(item.Size),
+			})
+		}
+		if info.Error == "" { // 只有在 LsIter 没出错时才设置 Entries
+			info.Entries = &entries
+		}
+		// --- (核心逻辑结束) ---
+
+	default:
+		info.Type = "unknown"
+		info.Error = "node type is neither file nor directory"
+	}
+
+	// 将最终的 info 结构体序列化为 JSON 并返回
+	jsonData, _ := json.Marshal(info) // 再次忽略 marshal 错误
+	return string(jsonData)
 }
 
 // GetIPFSPeerID 获取当前IPFS节点的对等点ID
