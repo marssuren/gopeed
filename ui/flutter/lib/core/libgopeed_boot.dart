@@ -29,7 +29,7 @@ abstract class LibgopeedBoot {
   Future<Uint8List> getFileFromIPFS(String cid);
   Future<String> getIPFSPeerID();
 
-  Future<List<DirectoryEntry>> listDirectoryFromIPFS(String cid);
-  Future<String> startDownloadSelected(String topCid, String localBasePath, List<String> selectedPaths);
-  Future<ProgressInfo> queryDownloadProgress(String downloadID);
+  Future<String> listDirectoryFromIPFS(String cid);
+  Future<String> startDownloadSelected(String topCid, String localBasePath, String selectedPathsJson);
+  Future<String> queryDownloadProgress(String downloadID);
 }

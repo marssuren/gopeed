@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';  // 添加Uint8List支持
 
 import 'package:contentsize_tabbarview/contentsize_tabbarview.dart';
 import 'package:desktop_drop/desktop_drop.dart';
@@ -30,6 +31,7 @@ import '../../app/controllers/app_controller.dart';
 import '../../history/views/history_view.dart';
 import '../controllers/create_controller.dart';
 import '../dto/create_router_params.dart';
+import '../../../../core/common/ipfs/directory_entry.dart';  // 添加DirectoryEntry引用
 
 class CreateView extends GetView<CreateController> {
   final _confirmFormKey = GlobalKey<FormState>();
@@ -652,13 +654,33 @@ class CreateView extends GetView<CreateController> {
                                 child: Text('confirm'.tr),
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.cloud_download_outlined), // 选择一个合适的图标
-                              tooltip: 'Test IPFS Download',
-                              onPressed: (){
-                                // 点击按钮时显示对话框
-                                _showIpfsDownloadDialog(context);
-                              },
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                ElevatedButton.icon(
+                                  icon: const Icon(Icons.cloud_outlined),
+                                  label: Text('IPFS测试'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.teal,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  onPressed: (){
+                                    _showIpfsDownloadDialog(context);
+                                  },
+                                ),
+                                const SizedBox(width: 10),
+                                ElevatedButton.icon(
+                                  icon: const Icon(Icons.file_download_outlined),
+                                  label: Text('单文件测试'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  onPressed: (){
+                                    _showSimpleFileDownloadDialog(context);
+                                  },
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -671,6 +693,15 @@ class CreateView extends GetView<CreateController> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showSimpleFileDownloadDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return const SimpleFileDownloadDialog();
+      },
     );
   }
 
@@ -948,6 +979,260 @@ class _IpfsDownloadDialogState extends State<IpfsDownloadDialog> {
   final TextEditingController _cidController = TextEditingController();
   bool _isLoading = false;
   String? _resultMessage; // 用于显示结果或错误
+  List<DirectoryEntry>? _directoryEntries; // 存储目录结构
+  String _currentCid = "";
+
+  @override
+  void initState() {
+    super.initState();
+    // 使用公开的IPFS目录CID样例 - IPFS项目文档
+    _cidController.text = "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG";
+    _currentCid = _cidController.text;
+  }
+
+  @override
+  void dispose() {
+    _cidController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _listIpfsDirectory() async {
+    final cid = _cidController.text.trim();
+    if (cid.isEmpty) {
+      setState(() {
+        _resultMessage = "请输入CID。";
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _resultMessage = null;
+      _directoryEntries = null;
+    });
+
+    try {
+      logger.i("尝试通过IPFS列出目录：$cid");
+      // 现在 listDirectoryFromIPFS 返回 JSON 字符串
+      var obj = await LibgopeedBoot.instance.listDirectoryFromIPFS(cid);
+      final String entriesJson = await LibgopeedBoot.instance.listDirectoryFromIPFS(cid);
+      logger.i("成功获取目录 JSON，CID: $cid, JSON: $entriesJson"); // 添加日志记录JSON内容
+
+      // 使用 dart:convert 解析 JSON
+      final List<dynamic> decodedList = jsonDecode(entriesJson);
+
+      // 将解码后的 List<Map<String, dynamic>> 转换为 List<DirectoryEntry>
+      final List<DirectoryEntry> entries = decodedList
+          .map((item) => DirectoryEntry.fromJson(item as Map<String, dynamic>))
+          .toList();
+
+      logger.i("成功解析目录内容，共 ${entries.length} 个条目，CID: $cid");
+      
+      setState(() {
+        _isLoading = false;
+        _directoryEntries = entries; // 更新状态
+        _currentCid = cid;
+        _resultMessage = "目录加载成功，共${entries.length}个条目";
+      });
+    } on PlatformException catch (pe, stacktrace) { // 优先捕获 PlatformException
+      logger.e("平台异常：无法获取或解析目录内容，CID: $cid", pe, stacktrace);
+      setState(() {
+        _isLoading = false;
+        // 从 PlatformException 提取信息
+        _resultMessage = "平台错误：\nCode: ${pe.code}\nMessage: ${pe.message}\nDetails: ${pe.details}";
+      });
+    } catch (e, stacktrace) { // 捕获其他可能的错误 (如 FormatException)
+      logger.e("其他错误：无法获取或解析目录内容，CID: $cid", e, stacktrace);
+      setState(() {
+        _isLoading = false;
+        // 对其他错误使用 toString()
+        _resultMessage = "加载或解析失败：\n${e.toString()}"; 
+      });
+    }
+  }
+
+  Future<void> _downloadIpfsFile(String cid, bool isDirectory) async {
+    if (cid.isEmpty) {
+      setState(() {
+        _resultMessage = "CID不能为空。";
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _resultMessage = null;
+    });
+
+    try {
+      if (isDirectory) {
+        // 如果是目录，就列出内容
+        _cidController.text = cid;
+        await _listIpfsDirectory();
+      } else {
+        // 如果是文件，就下载内容
+        logger.i("尝试通过IPFS下载文件：$cid");
+        final fileContent = await LibgopeedBoot.instance.getFileFromIPFS(cid);
+        logger.i("成功下载内容，CID: $cid");
+        setState(() {
+          _isLoading = false;
+          // 处理Uint8List类型的二进制数据
+          String contentPreview;
+          if (fileContent.length > 100) {
+            // 尝试转换为文本，如果是文本文件
+            try {
+              contentPreview = utf8.decode(fileContent.sublist(0, 100), allowMalformed: true) + "...";
+            } catch (e) {
+              // 如果不是有效的UTF-8文本，就显示十六进制
+              contentPreview = fileContent.sublist(0, 100).map((byte) => byte.toRadixString(16).padLeft(2, '0')).join(' ') + "...";
+            }
+          } else {
+            try {
+              contentPreview = utf8.decode(fileContent, allowMalformed: true);
+            } catch (e) {
+              contentPreview = fileContent.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join(' ');
+            }
+          }
+          _resultMessage = "下载成功！\n内容(部分)：$contentPreview";
+        });
+      }
+    } catch (e) {
+      logger.e("下载失败，CID: $cid", e);
+      setState(() {
+        _isLoading = false;
+        _resultMessage = "下载失败：\n$e";
+      });
+    }
+  }
+
+  // 导航回上一级目录
+  void _navigateBack() {
+    if (_currentCid != _cidController.text.trim()) {
+      _cidController.text = _currentCid;
+      _listIpfsDirectory();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('IPFS下载测试'),
+      content: Container(
+        width: MediaQuery.of(context).size.width * 0.8,
+        height: MediaQuery.of(context).size.height * 0.6,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _cidController,
+                    decoration: const InputDecoration(
+                      labelText: '输入IPFS CID',
+                      hintText: '例如 QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG',
+                    ),
+                    enabled: !_isLoading,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  onPressed: _isLoading ? null : _listIpfsDirectory,
+                  tooltip: '加载目录',
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (_isLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (_resultMessage != null && _directoryEntries == null)
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Text(
+                  _resultMessage!,
+                  style: TextStyle(
+                    color: _resultMessage!.contains("失败") ? Colors.red : Colors.green,
+                  ),
+                ),
+              )
+            else if (_directoryEntries != null)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text("当前CID: $_currentCid", style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    if (_resultMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Text(
+                          _resultMessage!,
+                          style: TextStyle(
+                            color: _resultMessage!.contains("失败") ? Colors.red : Colors.green,
+                          ),
+                        ),
+                      ),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _directoryEntries!.length,
+                        itemBuilder: (context, index) {
+                          final entry = _directoryEntries![index];
+                          return ListTile(
+                            leading: Icon(
+                              entry.type == "directory" ? Icons.folder : Icons.insert_drive_file,
+                              color: entry.type == "directory" ? Colors.amber : Colors.blue,
+                            ),
+                            title: Text(entry.name),
+                            subtitle: Text("${entry.type} - ${entry.size} bytes"),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.download),
+                              tooltip: entry.type == "directory" ? "打开目录" : "下载文件",
+                              onPressed: () => _downloadIpfsFile(entry.cid, entry.type == "directory"),
+                            ),
+                            onTap: entry.type == "directory" 
+                                ? () => _downloadIpfsFile(entry.cid, true)
+                                : null,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        if (_directoryEntries != null)
+          TextButton(
+            child: const Text('返回'),
+            onPressed: _navigateBack,
+          ),
+        TextButton(
+          child: const Text('关闭'),
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+        ),
+      ],
+    );
+  }
+}
+
+// --- 单文件下载测试对话框 ---
+class SimpleFileDownloadDialog extends StatefulWidget {
+  const SimpleFileDownloadDialog({Key? key}) : super(key: key);
+
+  @override
+  State<SimpleFileDownloadDialog> createState() => _SimpleFileDownloadDialogState();
+}
+
+class _SimpleFileDownloadDialogState extends State<SimpleFileDownloadDialog> {
+  final TextEditingController _cidController = TextEditingController();
+  bool _isLoading = false;
+  String? _resultMessage; // 用于显示结果或错误
 
   @override
   void initState() {
@@ -965,33 +1250,47 @@ class _IpfsDownloadDialogState extends State<IpfsDownloadDialog> {
     final cid = _cidController.text.trim();
     if (cid.isEmpty) {
       setState(() {
-        _resultMessage = "Please enter a CID.";
+        _resultMessage = "请输入CID。";
       });
       return;
     }
 
     setState(() {
       _isLoading = true;
-      _resultMessage = null; // 清除旧消息
+      _resultMessage = null;
     });
 
     try {
-      logger.i("Attempting to download CID via IPFS: $cid");
+      logger.i("尝试通过IPFS下载文件：$cid");
       final fileContent = await LibgopeedBoot.instance.getFileFromIPFS(cid);
-      logger.i("Successfully downloaded content for CID $cid");
+      logger.i("成功下载内容，CID: $cid");
+      
       setState(() {
         _isLoading = false;
-        // 为了简洁，我们只显示部分内容或成功消息
-        _resultMessage =
-        "Download successful!\nContent (partial): ${fileContent.substring(0, fileContent.length > 100 ? 100 : fileContent.length)}...";
+        // 处理Uint8List类型的二进制数据
+        String contentPreview;
+        if (fileContent.length > 100) {
+          // 尝试转换为文本，如果是文本文件
+          try {
+            contentPreview = utf8.decode(fileContent.sublist(0, 100), allowMalformed: true) + "...";
+          } catch (e) {
+            // 如果不是有效的UTF-8文本，就显示十六进制
+            contentPreview = fileContent.sublist(0, 100).map((byte) => byte.toRadixString(16).padLeft(2, '0')).join(' ') + "...";
+          }
+        } else {
+          try {
+            contentPreview = utf8.decode(fileContent, allowMalformed: true);
+          } catch (e) {
+            contentPreview = fileContent.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join(' ');
+          }
+        }
+        _resultMessage = "下载成功！\n内容(部分)：$contentPreview";
       });
-      // 你也可以在这里关闭对话框并把内容传递出去，或者直接显示完整内容
-      // Navigator.of(context).pop(fileContent);
     } catch (e) {
-      logger.e("Failed to download content for CID $cid", e);
+      logger.e("下载失败，CID: $cid", e);
       setState(() {
         _isLoading = false;
-        _resultMessage = "Download failed:\n$e";
+        _resultMessage = "下载失败：\n$e";
       });
     }
   }
@@ -999,49 +1298,43 @@ class _IpfsDownloadDialogState extends State<IpfsDownloadDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Test IPFS Download'),
+      title: const Text('单文件下载测试'),
       content: SingleChildScrollView(
-        // 防止内容过多时溢出
         child: Column(
-          mainAxisSize: MainAxisSize.min, // 让对话框大小适应内容
+          mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             TextField(
               controller: _cidController,
               decoration: const InputDecoration(
-                labelText: 'Enter IPFS CID',
-                hintText:
-                'e.g., QmZULkCELmmk5XNfCgTnCyFgAVxBRBXyDHGGMVoLFLiXEN',
+                labelText: '输入IPFS CID',
+                hintText: '例如 QmZULkCELmmk5XNfCgTnCyFgAVxBRBXyDHGGMVoLFLiXEN',
               ),
-              enabled: !_isLoading, // 加载时禁用输入框
+              enabled: !_isLoading,
             ),
             const SizedBox(height: 20),
             if (_isLoading)
-              const CircularProgressIndicator() // 显示加载指示器
+              const CircularProgressIndicator()
             else if (_resultMessage != null)
               Text(
-                // 显示结果或错误信息
                 _resultMessage!,
                 style: TextStyle(
-                    color: _resultMessage!.startsWith("Download failed")
-                        ? Colors.red
-                        : Colors.green),
+                    color: _resultMessage!.contains("失败") ? Colors.red : Colors.green),
               ),
           ],
         ),
       ),
       actions: <Widget>[
         TextButton(
-          child: const Text('Cancel'),
+          child: const Text('取消'),
           onPressed: _isLoading
               ? null
               : () {
-            // 加载时禁用按钮
-            Navigator.of(context).pop(); // 关闭对话框
-          },
+                  Navigator.of(context).pop();
+                },
         ),
         ElevatedButton(
-          child: const Text('Download'),
-          onPressed: _isLoading ? null : _downloadIpfsFile, // 加载时禁用按钮
+          child: const Text('下载'),
+          onPressed: _isLoading ? null : _downloadIpfsFile,
         ),
       ],
     );

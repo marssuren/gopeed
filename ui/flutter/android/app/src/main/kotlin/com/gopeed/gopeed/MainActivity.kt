@@ -6,6 +6,10 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.StandardMethodCodec
+import org.json.JSONArray
+import org.json.JSONObject
+import java.lang.Exception
+import android.util.Log
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "gopeed.com/libgopeed"
@@ -39,7 +43,7 @@ class MainActivity : FlutterActivity() {
                     // 成功，无返回值
                     result.success(null)
                 }
-                // --- 新增的 IPFS 方法 ---
+
                 "initIPFS" -> {
                     val repoPath = call.argument<String>("repoPath")
                     if (repoPath != null) {
@@ -54,6 +58,7 @@ class MainActivity : FlutterActivity() {
                         result.error("INVALID_ARGS", "initIPFS 缺少 repoPath 参数", null)
                     }
                 }
+
                 "startIPFS" -> {
                     val repoPath = call.argument<String>("repoPath")
                     if (repoPath != null) {
@@ -68,6 +73,7 @@ class MainActivity : FlutterActivity() {
                         result.error("INVALID_ARGS", "startIPFS 缺少 repoPath 参数", null)
                     }
                 }
+
                 "stopIPFS" -> {
                     try {
                         // 调用 Go 函数 (只返回 error)
@@ -78,6 +84,7 @@ class MainActivity : FlutterActivity() {
                         result.error("IPFS_STOP_ERROR", e.localizedMessage ?: "停止 IPFS 节点失败", null)
                     }
                 }
+
                 "addFileToIPFS" -> {
                     val content = call.argument<String>("content")
                     if (content != null) {
@@ -92,6 +99,7 @@ class MainActivity : FlutterActivity() {
                         result.error("INVALID_ARGS", "addFileToIPFS 缺少 content 参数", null)
                     }
                 }
+
                 "getFileFromIPFS" -> {
                     val cid = call.argument<String>("cid")
                     if (cid != null) {
@@ -106,10 +114,10 @@ class MainActivity : FlutterActivity() {
                         result.error("INVALID_ARGS", "getFileFromIPFS 缺少 cid 参数", null)
                     }
                 }
+
                 "getIPFSPeerID" -> {
                     try {
-                        // 这个特定的 Go 函数不返回错误，但 gomobile 可能会包装 panic
-                        // 调用 Go 函数 (返回 string)
+                        // 调用现在应该存在的 Go 函数
                         val peerId = Libgopeed.getIPFSPeerID()
                         result.success(peerId)
                     } catch (e: Exception) {
@@ -119,22 +127,21 @@ class MainActivity : FlutterActivity() {
 
                 "listDirectoryFromIPFS" -> {
                     val cid = call.argument<String>("cid")
+                    Log.d("GoPeedDebug", "Received listDirectoryFromIPFS call for CID: $cid")
                     if (cid != null) {
                         try {
-                            // 调用 Go 函数，它返回 List<Libgopeed.DirectoryEntry>
-                            val entries: List<Libgopeed.DirectoryEntry> = Libgopeed.listDirectoryFromIPFS(cid)
-                            // 将 Go 返回的结构体列表转换为 Dart 可理解的 Map 列表
-                            val resultList = entries.map { entry ->
-                                mapOf(
-                                    "name" to entry.name,
-                                    "cid" to entry.cid,
-                                    "type" to entry.type,
-                                    "size" to entry.size // Kotlin Long 对应 Dart int
-                                )
-                            }
-                            result.success(resultList)
+                            // 1. 调用 Go 函数，获取 JSON 字符串
+                            val jsonString = Libgopeed.listDirectoryFromIPFS(cid)
+                            Log.d("GoPeedDebug", "Got JSON string from Go: $jsonString")
+
+                            // 2. 直接将从 Go 获取的 JSON 字符串发送回 Dart
+                            result.success(jsonString) // <--- 关键：发送原始 JSON 字符串
+
+                            // 注意：不再需要在 Kotlin 端解析 JSON 了，解析工作交给 Dart
+
                         } catch (e: Exception) {
-                            result.error("IPFS_LIST_ERROR", e.localizedMessage ?: "列出目录失败", null)
+                             Log.e("GoPeedDebug", "Error in listDirectoryFromIPFS: ${e.localizedMessage}", e)
+                            result.error("IPFS_LIST_ERROR", e.localizedMessage ?: "列出目录失败", e.toString())
                         }
                     } else {
                         result.error("INVALID_ARGS", "listDirectoryFromIPFS 缺少 cid 参数", null)
@@ -144,16 +151,20 @@ class MainActivity : FlutterActivity() {
                 "startDownloadSelected" -> {
                     val topCid = call.argument<String>("topCid")
                     val localBasePath = call.argument<String>("localBasePath")
-                    // 注意：接收 List<String> 参数
                     val selectedPaths = call.argument<List<String>>("selectedPaths")
 
                     if (topCid != null && localBasePath != null && selectedPaths != null) {
                         try {
-                            // 调用 Go 函数
-                            val taskId = Libgopeed.startDownloadSelected(topCid, localBasePath, selectedPaths)
+                            // --- 将 List<String> 序列化为 JSON 字符串 ---
+                            val jsonArray = JSONArray(selectedPaths)
+                            val selectedPathsJson = jsonArray.toString()
+                            // --- ---
+
+                            // 调用 Go 函数，传递 JSON 字符串
+                            val taskId = Libgopeed.startDownloadSelected(topCid, localBasePath, selectedPathsJson)
                             result.success(taskId) // 返回任务 ID
                         } catch (e: Exception) {
-                            result.error("IPFS_DOWNLOAD_START_ERROR", e.localizedMessage ?: "启动下载任务失败", null)
+                            result.error("IPFS_DOWNLOAD_START_ERROR", e.localizedMessage ?: "启动下载任务失败", e.toString()) // 添加详细错误信息
                         }
                     } else {
                         result.error("INVALID_ARGS", "startDownloadSelected 缺少参数 (topCid, localBasePath, or selectedPaths)", null)
@@ -164,22 +175,25 @@ class MainActivity : FlutterActivity() {
                     val downloadID = call.argument<String>("downloadID")
                     if (downloadID != null) {
                         try {
-                            // 调用 Go 函数，返回 Libgopeed.ProgressInfo
-                            val progress: Libgopeed.ProgressInfo = Libgopeed.queryDownloadProgress(downloadID)
-                            // 将 Go 结构体转换为 Dart 可理解的 Map
-                            val resultMap = mapOf(
-                                "totalBytes" to progress.totalBytes,
-                                "bytesRetrieved" to progress.bytesRetrieved,
-                                "speedBps" to progress.speedBps,
-                                "elapsedTimeSec" to progress.elapsedTimeSec,
-                                "isCompleted" to progress.isCompleted,
-                                "hasError" to progress.hasError,
-                                "errorMessage" to progress.errorMessage
-                            )
+                            // 调用 Go 函数，现在返回 JSON 字符串
+                            val jsonString = Libgopeed.queryDownloadProgress(downloadID)
+                            // 解析 JSON 字符串为 Map<String, Any?>
+                            val jsonObj = JSONObject(jsonString)
+                            val resultMap = mutableMapOf<String, Any?>()
+                            val keys = jsonObj.keys()
+                            while (keys.hasNext()) {
+                                val key = keys.next()
+                                resultMap[key] = jsonObj.get(key)
+                            }
+                             // 确保数值类型正确 (可选，取决于 Dart 端如何处理)
+                            resultMap["totalBytes"] = jsonObj.getLong("totalBytes")
+                            resultMap["bytesRetrieved"] = jsonObj.getLong("bytesRetrieved")
+                            resultMap["speedBps"] = jsonObj.getDouble("speedBps")
+                            resultMap["elapsedTimeSec"] = jsonObj.getDouble("elapsedTimeSec")
+
                             result.success(resultMap)
                         } catch (e: Exception) {
-                            // 查询失败可能是 ID 不存在，或者 Go 端内部错误
-                            result.error("IPFS_QUERY_PROGRESS_ERROR", e.localizedMessage ?: "查询进度失败", null)
+                            result.error("IPFS_QUERY_PROGRESS_ERROR", e.localizedMessage ?: "查询进度失败", e.toString()) // 添加详细错误信息
                         }
                     } else {
                         result.error("INVALID_ARGS", "queryDownloadProgress 缺少 downloadID 参数", null)

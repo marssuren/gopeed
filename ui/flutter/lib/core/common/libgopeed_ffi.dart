@@ -75,19 +75,19 @@ class LibgopeedFFi implements LibgopeedInterface {
   }
 
   @override
-  Future<List<DirectoryEntry>> listDirectoryFromIPFS(String cid) {
+  Future<String> listDirectoryFromIPFS(String cid) {
     // TODO: implement listDirectoryFromIPFS
     throw UnimplementedError();
   }
 
   @override
-  Future<ProgressInfo> queryDownloadProgress(String downloadID) {
+  Future<String> queryDownloadProgress(String downloadID) {
     // TODO: implement queryDownloadProgress
     throw UnimplementedError();
   }
 
   @override
-  Future<String> startDownloadSelected(String topCid, String localBasePath, List<String> selectedPaths) {
+  Future<String> startDownloadSelected(String topCid, String localBasePath, String selectedPathsJson) {
     // TODO: implement startDownloadSelected
     throw UnimplementedError();
   }

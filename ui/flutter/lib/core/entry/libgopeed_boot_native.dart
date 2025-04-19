@@ -91,19 +91,20 @@ class LibgopeedBootNative implements LibgopeedBoot {
 
   
   @override
-  Future<List<DirectoryEntry>> listDirectoryFromIPFS(String cid) {
+  Future<String> listDirectoryFromIPFS(String cid) {
     // 将调用委托给内部的 _libgopeed 实例
+    var result = _libgopeed.listDirectoryFromIPFS(cid);
     return _libgopeed.listDirectoryFromIPFS(cid);
   }
 
   @override
-  Future<String> startDownloadSelected(String topCid, String localBasePath, List<String> selectedPaths) {
+  Future<String> startDownloadSelected(String topCid, String localBasePath, String selectedPathsJson) {
     // 将调用委托给内部的 _libgopeed 实例
-    return _libgopeed.startDownloadSelected(topCid, localBasePath, selectedPaths);
+    return _libgopeed.startDownloadSelected(topCid, localBasePath, selectedPathsJson);
   }
 
   @override
-  Future<ProgressInfo> queryDownloadProgress(String downloadID) {
+  Future<String> queryDownloadProgress(String downloadID) {
     // 将调用委托给内部的 _libgopeed 实例
     return _libgopeed.queryDownloadProgress(downloadID);
   }

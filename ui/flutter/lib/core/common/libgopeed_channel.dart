@@ -96,39 +96,29 @@ class LibgopeedChannel implements LibgopeedInterface {
   }
 
   @override
-  Future<List<DirectoryEntry>> listDirectoryFromIPFS(String cid) async {
+  Future<String> listDirectoryFromIPFS(String cid) async {
     try {
-      // Kotlin 端应该返回 List<Map<String, dynamic>>
-      final List<dynamic>? result =
+      final String? jsonString =
           await _channel.invokeMethod('listDirectoryFromIPFS', {'cid': cid});
-      if (result == null) {
-        throw Exception("Native 'listDirectoryFromIPFS' returned null list");
+      if (jsonString == null || jsonString.isEmpty) {
+        return '[]';
       }
-      // 将 List<dynamic> (实际是 List<Map<String, dynamic>>) 转换为 List<DirectoryEntry>
-      final entries = result
-          .map((item) =>
-              DirectoryEntry.fromJson(Map<String, dynamic>.from(item as Map)))
-          .toList();
-      return entries;
+      return jsonString;
     } on PlatformException catch (e) {
       print("Error listing directory from IPFS: ${e.code} - ${e.message}");
-      rethrow;
-    } catch (e) {
-      // 捕获可能的类型转换错误
-      print("Error processing result from 'listDirectoryFromIPFS': $e");
       rethrow;
     }
   }
 
   @override
   Future<String> startDownloadSelected(
-      String topCid, String localBasePath, List<String> selectedPaths) async {
+      String topCid, String localBasePath, String selectedPathsJson) async {
     try {
       final String? taskId =
           await _channel.invokeMethod('startDownloadSelected', {
         'topCid': topCid,
         'localBasePath': localBasePath,
-        'selectedPaths': selectedPaths,
+        'selectedPaths': selectedPathsJson,
       });
       return taskId ??
           (throw Exception(
@@ -140,22 +130,16 @@ class LibgopeedChannel implements LibgopeedInterface {
   }
 
   @override
-  Future<ProgressInfo> queryDownloadProgress(String downloadID) async {
+  Future<String> queryDownloadProgress(String downloadID) async {
     try {
-      // Kotlin 端应该返回 Map<String, dynamic>
-      final Map<dynamic, dynamic>? result = await _channel
+      final String? jsonString = await _channel
           .invokeMethod('queryDownloadProgress', {'downloadID': downloadID});
-      if (result == null) {
-        throw Exception("Native 'queryDownloadProgress' returned null map");
+      if (jsonString == null || jsonString.isEmpty) {
+        return '{}';
       }
-      // 将 Map<dynamic, dynamic> 转换为 Map<String, dynamic> 再创建对象
-      return ProgressInfo.fromJson(Map<String, dynamic>.from(result));
+      return jsonString;
     } on PlatformException catch (e) {
       print("Error querying download progress: ${e.code} - ${e.message}");
-      rethrow;
-    } catch (e) {
-      // 捕获可能的类型转换错误
-      print("Error processing result from 'queryDownloadProgress': $e");
       rethrow;
     }
   }
