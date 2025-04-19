@@ -20,6 +20,8 @@ import (
 	ipfspath "github.com/ipfs/boxo/path"
 	"github.com/ipfs/kubo/core/coreapi"
 	coreiface "github.com/ipfs/kubo/core/coreiface" // <--- 导入 coreiface
+
+	// <--- 需要导入 object 包
 	"github.com/ipfs/kubo/core/coreiface/options"
 	ipfs "github.com/marssuren/gomobile_ipfs_0/go/bind/core"
 	// 需要导入 ipld 包
@@ -662,12 +664,12 @@ func StartDownloadSelected(topCid string, localBasePath string, selectedPathsJso
 
 // GetIpfsNodeInfo 获取指定 CID 节点的信息 (类型、大小或目录内容)
 // 返回包含节点信息的 JSON 字符串
-func GetIpfsNodeInfo(cid string) string { // 直接返回 JSON string，简化 gomobile 处理
-	info := NodeInfo{Cid: cid, Type: "unknown"} // 初始化
+func GetIpfsNodeInfo(cid string) string {
+	info := NodeInfo{Cid: cid, Type: "unknown"}
 
 	if ipfsNode == nil {
 		info.Error = "IPFS node is not running"
-		jsonData, _ := json.Marshal(info) // 忽略 marshal 错误，因为结构简单
+		jsonData, _ := json.Marshal(info)
 		return string(jsonData)
 	}
 
@@ -685,50 +687,58 @@ func GetIpfsNodeInfo(cid string) string { // 直接返回 JSON string，简化 g
 		return string(jsonData)
 	}
 
-	// 解析路径以获取节点对象，这里我们不关心解析后的最终路径，只关心节点本身
-	node, err := api.ResolveNode(ipfsContext, p)
+	// --- 解析节点并检查类型 ---
+	ctx, cancel := context.WithTimeout(ipfsContext, 30*time.Second) // 添加超时控制
+	defer cancel()
+
+	// 1. 解析路径以获取后续操作所需的对象
+	resolvedPath, _, err := api.ResolvePath(ctx, p) // <--- 修正：忽略第二个返回值
+	if err != nil {
+		info.Error = fmt.Sprintf("failed to resolve IPFS path %s: %s", p, err)
+		jsonData, _ := json.Marshal(info)
+		return string(jsonData)
+	}
+
+	// 2. 获取节点对象本身 (使用原始路径 p)
+	node, err := api.ResolveNode(ctx, p)
 	if err != nil {
 		info.Error = fmt.Sprintf("failed to resolve IPFS node for path %s: %s", p, err)
 		jsonData, _ := json.Marshal(info)
 		return string(jsonData)
 	}
 
-	// --- 判断节点类型 ---
-	switch node.(type) {
+	// 3. 判断节点类型
+	switch nd := node.(type) {
 	case files.File:
 		info.Type = "file"
-		f := node.(files.File)
-		size, err := f.Size()
-		if err != nil {
-			// 文件大小未知也算一种信息，不直接报错返回
-			info.Size = -1 // 标记大小未知
-			info.Error = fmt.Sprintf("failed to get file size: %s", err)
+		f := nd
+		size, sizeErr := f.Size()
+		if sizeErr != nil {
+			info.Size = -1
+			info.Error = fmt.Sprintf("failed to get file size: %s", sizeErr)
 		} else {
 			info.Size = size
 		}
+		// 不需要关闭 f，因为它只是一个接口，没有底层资源句柄
+
 	case files.Directory:
 		info.Type = "directory"
-		// 直接调用我们现有的 ListDirectoryFromIPFS (它现在返回 JSON string)
-		// 注意：这里的错误处理需要小心，因为 ListDirectoryFromIPFS 内部错误会返回错误信息
-		// 而 ResolveNode 成功意味着它 *是* 一个目录
-		// 为了获取 entries，我们最好重新实现 ListDirectoryFromIPFS 的核心逻辑
+		// 目录大小可以尝试获取，但 UnixFS 目录大小通常为 0 或意义不大
+		// size, _ := nd.Size()
+		// info.Size = size
 
-		// --- (重新实现 ListDirectoryFromIPFS 核心逻辑) ---
+		// --- 获取目录条目 ---
 		entries := make([]DirectoryEntry, 0)
-		// 正确处理 ResolvePath 的三个返回值
-		resolvedPath, _, err := api.ResolvePath(ipfsContext, p) // 再次解析以获取可用于 Ls 的路径
-		if err != nil {
-			info.Error = fmt.Sprintf("failed to resolve path for listing %s: %s", p, err)
-			break // 跳出 switch
-		}
+		lsCtx, lsCancel := context.WithTimeout(ipfsContext, 60*time.Second) // 为列表操作设置更长超时
+		defer lsCancel()
 
-		for item, err := range coreiface.LsIter(ipfsContext, api.Unixfs(), resolvedPath) {
+		for item, err := range coreiface.LsIter(lsCtx, api.Unixfs(), resolvedPath) { // 使用 LsIter
 			if err != nil {
 				info.Error = fmt.Sprintf("error listing directory %s: %s", resolvedPath, err)
-				// 清空可能已部分填充的 entries，因为列表不完整
 				entries = nil
-				break // 跳出 for 循环
+				break
 			}
+			// 注意：LsIter 第一个不一定是目录本身，需要检查 Type
 			entryType := "unknown"
 			switch item.Type {
 			case coreiface.TFile:
@@ -746,15 +756,15 @@ func GetIpfsNodeInfo(cid string) string { // 直接返回 JSON string，简化 g
 		if info.Error == "" { // 只有在 LsIter 没出错时才设置 Entries
 			info.Entries = &entries
 		}
-		// --- (核心逻辑结束) ---
+		// --- ---
 
 	default:
 		info.Type = "unknown"
-		info.Error = "node type is neither file nor directory"
+		info.Error = fmt.Sprintf("node type (%T) is neither File nor Directory", nd)
 	}
+	// --- ---
 
-	// 将最终的 info 结构体序列化为 JSON 并返回
-	jsonData, _ := json.Marshal(info) // 再次忽略 marshal 错误
+	jsonData, _ := json.Marshal(info)
 	return string(jsonData)
 }
 
