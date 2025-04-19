@@ -715,7 +715,8 @@ func GetIpfsNodeInfo(cid string) string { // 直接返回 JSON string，简化 g
 
 		// --- (重新实现 ListDirectoryFromIPFS 核心逻辑) ---
 		entries := make([]DirectoryEntry, 0)
-		resolvedPath, err := api.ResolvePath(ipfsContext, p) // 再次解析以获取可用于 Ls 的路径
+		// 正确处理 ResolvePath 的三个返回值
+		resolvedPath, _, err := api.ResolvePath(ipfsContext, p) // 再次解析以获取可用于 Ls 的路径
 		if err != nil {
 			info.Error = fmt.Sprintf("failed to resolve path for listing %s: %s", p, err)
 			break // 跳出 switch
