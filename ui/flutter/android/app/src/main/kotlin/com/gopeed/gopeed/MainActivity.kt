@@ -228,6 +228,28 @@ class MainActivity : FlutterActivity() {
                         result.error("INVALID_ARGS", "downloadAndSaveFile 缺少参数 (cid, localFilePath, or downloadID)", null)
                     }
                 }
+
+                // --- 新增：处理 getIpfsNodeInfo ---
+                "getIpfsNodeInfo" -> {
+                    val cid = call.argument<String>("cid")
+                    if (cid != null) {
+                        try {
+                            // 调用 Go 函数，该函数现在直接返回 JSON 字符串
+                            val jsonString = Libgopeed.getIpfsNodeInfo(cid)
+                            // 直接将 JSON 字符串传递给 Dart
+                            result.success(jsonString)
+                        } catch (e: Exception) {
+                            // 理论上 Go 函数设计为不抛出异常，错误信息在 JSON 内
+                            // 但以防万一（例如 gomobile 内部错误），还是加上 catch
+                            Log.e("GoPeedDebug", "Unexpected error calling getIpfsNodeInfo: ${e.localizedMessage}", e)
+                            // 返回一个包含错误的 JSON
+                            result.success("{\"cid\":\"$cid\", \"type\":\"unknown\", \"error\":\"Native unexpected error: ${e.localizedMessage}\"}")
+                        }
+                    } else {
+                        result.error("INVALID_ARGS", "getIpfsNodeInfo 缺少 cid 参数", null)
+                    }
+                }
+
                 // --- ---
 
                 // --- 默认情况 ---

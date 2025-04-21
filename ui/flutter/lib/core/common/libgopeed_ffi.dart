@@ -97,4 +97,10 @@ class LibgopeedFFi implements LibgopeedInterface {
     // TODO: implement downloadAndSaveFile
     throw UnimplementedError();
   }
+
+  @override
+  Future<String> getIpfsNodeInfo(String cid) {
+    // TODO: implement getIpfsNodeInfo
+    throw UnimplementedError();
+  }
 }

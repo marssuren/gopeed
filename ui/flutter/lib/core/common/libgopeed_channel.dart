@@ -160,4 +160,18 @@ class LibgopeedChannel implements LibgopeedInterface {
       rethrow;
     }
   }
+
+  @override
+  Future<String> getIpfsNodeInfo(String cid) async {
+    try {
+      final String? jsonString =
+          await _channel.invokeMethod('getIpfsNodeInfo', {'cid': cid});
+      // Go 端设计为总返回字符串，但做个保护
+      return jsonString ?? '{\"cid\":\"$cid\", \"type\":\"unknown\", \"error\":\"Native returned null unexpectedly\"}';
+    } on PlatformException catch (e) {
+      print("Error getting IPFS node info: ${e.code} - ${e.message}");
+      // 返回包含错误的 JSON
+      return '{\"cid\":\"$cid\", \"type\":\"unknown\", \"error\":\"PlatformException: ${e.code} - ${e.message}\"}';
+    }
+  }
 }

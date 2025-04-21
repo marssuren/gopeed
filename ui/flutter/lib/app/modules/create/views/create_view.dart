@@ -669,10 +669,10 @@ class CreateView extends GetView<CreateController> {
                                     backgroundColor: Colors.teal,
                                     foregroundColor: Colors.white,
                                   ),
-                                  onPressed: (){
-                                    _showIpfsDownloadDialog(context);
-                                  },
-                                ),
+                              onPressed: (){
+                                _showIpfsDownloadDialog(context);
+                              },
+                            ),
                                 const SizedBox(width: 10),
                                 ElevatedButton.icon(
                                   icon: const Icon(Icons.file_download_outlined),
@@ -683,10 +683,10 @@ class CreateView extends GetView<CreateController> {
                                   ),
                                   onPressed: (){
                                     _showSimpleFileDownloadDialog(context);
-                                  },
-                                ),
-                              ],
+                              },
                             ),
+                          ],
+                        ),
                             // 新增按钮：测试单文件保存
                             Padding(
                               padding: const EdgeInsets.only(top: 10.0), // 加一点间距
@@ -699,6 +699,21 @@ class CreateView extends GetView<CreateController> {
                                 ),
                                 onPressed: () {
                                   _showSingleFileSaveDialog(context);
+                                },
+                              ),
+                            ),
+                            // 新增按钮：获取 IPFS 节点信息
+                            Padding(
+                              padding: const EdgeInsets.only(top: 10.0), 
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.info_outline),
+                                label: Text('获取节点信息'), 
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () {
+                                  _showIpfsInfoDialog(context);
                                 },
                               ),
                             ),
@@ -992,6 +1007,16 @@ class CreateView extends GetView<CreateController> {
       barrierDismissible: false, // 下载时不允许点击外部关闭
       builder: (BuildContext dialogContext) {
         return const SingleFileSaveDialog(); // 指向我们即将创建的 Dialog Widget
+      },
+    );
+  }
+
+  // --- 新增：显示 IPFS 节点信息对话框 ---
+  void _showIpfsInfoDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return const IpfsInfoDialog(); // 指向我们即将创建的 Dialog Widget
       },
     );
   }
@@ -1603,8 +1628,8 @@ class _SingleFileSaveDialogState extends State<SingleFileSaveDialog> {
                   _statusMessage!,
                   style: TextStyle(
                       color: _statusMessage!.contains("失败") || _statusMessage!.contains("出错") // 调整判断条件
-                          ? Colors.red
-                          : Colors.green),
+                        ? Colors.red
+                        : Colors.green),
                 ),
               ),
           ],
@@ -1618,11 +1643,179 @@ class _SingleFileSaveDialogState extends State<SingleFileSaveDialog> {
               : () {
                   _timer?.cancel();
                   Navigator.of(context).pop();
-                },
+          },
         ),
         ElevatedButton(
           child: const Text('开始下载'),
           onPressed: _isLoading ? null : _startDownload,
+        ),
+      ],
+    );
+  }
+}
+
+// --- 新增：获取 IPFS 节点信息对话框 ---
+class IpfsInfoDialog extends StatefulWidget {
+  const IpfsInfoDialog({Key? key}) : super(key: key);
+
+  @override
+  State<IpfsInfoDialog> createState() => _IpfsInfoDialogState();
+}
+
+class _IpfsInfoDialogState extends State<IpfsInfoDialog> {
+  final TextEditingController _cidController = TextEditingController();
+  bool _isLoading = false;
+  Map<String, dynamic>? _nodeInfo;
+  String? _statusMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    // 可以设置一个默认 CID 用于快速测试
+    _cidController.text = "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG"; // 默认用目录 CID
+  }
+
+  @override
+  void dispose() {
+    _cidController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _getNodeInfo() async {
+    final cid = _cidController.text.trim();
+    if (cid.isEmpty) {
+      setState(() { _statusMessage = "请输入 CID。"; });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _statusMessage = "正在获取节点信息...";
+      _nodeInfo = null; // 清除旧信息
+    });
+
+    try {
+      logger.i("调用 getIpfsNodeInfo: CID=$cid");
+      final String nodeInfoJson = await LibgopeedBoot.instance.getIpfsNodeInfo(cid);
+      logger.i("获取到节点信息 JSON: $nodeInfoJson");
+
+      if (!mounted) return;
+
+      final Map<String, dynamic> decodedInfo = jsonDecode(nodeInfoJson);
+
+      setState(() {
+        _isLoading = false;
+        _nodeInfo = decodedInfo;
+        _statusMessage = "获取成功！"; // 清除加载状态
+      });
+
+    } catch (e, stacktrace) {
+      logger.e("获取节点信息失败: CID=$cid", e, stacktrace);
+       if(mounted) setState(() {
+        _isLoading = false;
+         if (e is PlatformException) {
+            _statusMessage = "获取信息失败:\nCode: ${e.code}\nMessage: ${e.message}";
+         } else {
+           _statusMessage = "获取信息失败:\n${e.toString()}";
+         }
+      });
+    }
+  }
+
+  // 用于显示结果的辅助 Widget
+  Widget _buildResultDisplay() {
+    if (_nodeInfo == null) {
+      return Container(); // 没有信息时不显示
+    }
+
+    final errorMsg = _nodeInfo!['error'] as String?;
+    if (errorMsg != null && errorMsg.isNotEmpty) {
+      return Text("错误: $errorMsg", style: const TextStyle(color: Colors.red));
+    }
+
+    final nodeType = _nodeInfo!['type'] as String? ?? 'unknown';
+    final List<Widget> infoWidgets = [Text("类型: $nodeType")];
+
+    if (nodeType == 'file') {
+      final fileSize = _nodeInfo!['size'] as int? ?? -1;
+      infoWidgets.add(Text("大小: ${fileSize >= 0 ? fileSize.toString() : '未知'}"));
+      // 可以添加一个按钮来触发 downloadAndSaveFile
+      infoWidgets.add(Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: ElevatedButton(onPressed: (){ /* TODO: 触发下载 */ }, child: Text("下载此文件")),
+      ));
+    } else if (nodeType == 'directory') {
+      final List<dynamic> entriesList = _nodeInfo!['entries'] ?? [];
+      infoWidgets.add(Text("条目数: ${entriesList.length}"));
+      if (entriesList.isNotEmpty) {
+         infoWidgets.add(const Text("部分条目:"));
+         infoWidgets.addAll(entriesList.take(5).map((item) {
+            final entry = DirectoryEntry.fromJson(item as Map<String, dynamic>);
+            return Text("  - ${entry.name} (${entry.type})");
+         }));
+         if (entriesList.length > 5) {
+            infoWidgets.add(const Text("  ..."));
+         }
+      }
+       // 可以添加一个按钮来触发 startDownloadSelected
+      infoWidgets.add(Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: ElevatedButton(onPressed: (){ /* TODO: 触发选择性下载 */}, child: Text("下载此目录 (全部)")), // 简化：先做下载全部
+      ));
+    } else {
+      infoWidgets.add(const Text("未知节点类型或无法解析信息。"));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: infoWidgets,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('获取 IPFS 节点信息'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            TextField(
+              controller: _cidController,
+              decoration: const InputDecoration(
+                labelText: 'IPFS CID',
+                hintText: '输入文件或目录 CID',
+              ),
+              enabled: !_isLoading,
+            ),
+            const SizedBox(height: 20),
+            if (_isLoading)
+              const CircularProgressIndicator()
+            else if (_statusMessage != null && _nodeInfo == null) // 显示获取前的状态或错误
+              Text(
+                 _statusMessage!,
+                  style: TextStyle(
+                      color: _statusMessage!.contains("失败") 
+                          ? Colors.red
+                          : Colors.grey), // 非成功状态用灰色
+               )
+            else if (_nodeInfo != null)
+              _buildResultDisplay(), // 显示解析后的节点信息
+              
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          child: const Text('关闭'),
+          onPressed: _isLoading ? null : () {
+            Navigator.of(context).pop();
+          },
+        ),
+        ElevatedButton(
+          child: const Text('获取信息'),
+          onPressed: _isLoading ? null : _getNodeInfo,
         ),
       ],
     );

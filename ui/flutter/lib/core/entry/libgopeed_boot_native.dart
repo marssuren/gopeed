@@ -115,4 +115,10 @@ class LibgopeedBootNative implements LibgopeedBoot {
     // 将调用委托给内部的 _libgopeed 实例
     return _libgopeed.downloadAndSaveFile(cid, localFilePath, downloadID);
   }
+
+  @override
+  Future<String> getIpfsNodeInfo(String cid) {
+    // 将调用委托给内部的 _libgopeed 实例
+    return _libgopeed.getIpfsNodeInfo(cid);
+  }
 }

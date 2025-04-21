@@ -1,8 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:gopeed/core/common/ipfs/directory_entry.dart';
-import 'package:gopeed/core/common/ipfs/progress_info.dart';
-
 import 'common/start_config.dart';
 import "libgopeed_boot_stub.dart"
     if (dart.library.html) 'entry/libgopeed_boot_browser.dart'
@@ -30,8 +27,14 @@ abstract class LibgopeedBoot {
   Future<String> getIPFSPeerID();
 
   Future<String> listDirectoryFromIPFS(String cid);
-  Future<String> startDownloadSelected(String topCid, String localBasePath, String selectedPathsJson);
+  Future<String> startDownloadSelected(
+      String topCid, String localBasePath, String selectedPathsJson);
   Future<String> queryDownloadProgress(String downloadID);
 
-  Future<void> downloadAndSaveFile(String cid, String localFilePath, String downloadID);
+  Future<void> downloadAndSaveFile(
+      String cid, String localFilePath, String downloadID);
+  Future<String> getIpfsNodeInfo(String cid);
+
+  Future<String> startHTTPServices({int apiPort = 0, int gatewayPort = 0});
+  Future<void> stopHTTPServices();
 }
