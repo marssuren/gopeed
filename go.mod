@@ -340,3 +340,4 @@ require (
 )
 
 replace github.com/marssuren/gomobile_ipfs_0 => ./external/gomobile_ipfs_0
+replace github.com/libp2p/go-libp2p => github.com/marssuren/go-libp2p.git v0.0.0-custom

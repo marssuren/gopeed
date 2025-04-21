@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -28,10 +27,7 @@ import (
 	"github.com/ipfs/kubo/core/corehttp"
 	coreiface "github.com/ipfs/kubo/core/coreiface" // <--- 导入 coreiface
 	"github.com/ipfs/kubo/core/coreiface/options"
-	p2p_host "github.com/libp2p/go-libp2p/core/host"
-	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
 	ipfs "github.com/marssuren/gomobile_ipfs_0/go/bind/core"
-	ma "github.com/multiformats/go-multiaddr"
 )
 
 // 全局变量，保存IPFS节点和上下文
@@ -171,27 +167,6 @@ func StartIPFS(repoPath string) (string, error) {
 	// 创建IPFS节点配置
 	ipfsConfig := &ipfs.IpfsConfig{
 		RepoMobile: repo.Mobile(),
-		HostConfig: &ipfs.HostConfig{
-			ConfigFunc: func(host p2p_host.Host) error {
-				// 只在 Android 平台上应用限制
-				// 这个函数的作用是决定主机应该对外宣告哪些地址。我们的自定义函数忽略所有实际的网络接口，直接返回一个只包含 IPv4 和 IPv6 回环地址 (/ip4/127.0.0.1/tcp/0, /ip6/::1/tcp/0) 的列表。
-				// 在 Android 平台上，BasicHost 在获取自身地址时会调用我们提供的 AddrsFactory，直接得到回环地址，从而跳过了需要 netroute 的接口发现逻辑，避免了权限错误。
-				// 在非 Android 平台上，AddrsFactory 不会被修改，libp2p 会正常进行接口发现。
-				// 由于 Gopeed 配置中已经启用了自动中继 (enableAutoRelay: true)，即使节点只知道自己的回环地址，它仍然可以通过中继服务器连接到 P2P 网络，核心功能不受影响。
-				if runtime.GOOS == "android" {
-					if basicHost, ok := host.(*basichost.BasicHost); ok {
-						basicHost.AddrsFactory = func(addrs []ma.Multiaddr) []ma.Multiaddr {
-							// 返回回环地址
-							return []ma.Multiaddr{
-								ma.StringCast("/ip4/127.0.0.1/tcp/0"),
-								ma.StringCast("/ip6/::1/tcp/0"),
-							}
-						}
-					}
-				}
-				return nil
-			},
-		},
 		ExtraOpts: map[string]bool{
 			"pubsub":                    true,
 			"ipnsps":                    true,
