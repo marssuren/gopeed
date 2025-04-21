@@ -717,6 +717,21 @@ class CreateView extends GetView<CreateController> {
                                 },
                               ),
                             ),
+                            // 新增按钮：测试 HTTP 服务
+                            Padding(
+                              padding: const EdgeInsets.only(top: 10.0), 
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.http),
+                                label: Text('HTTP服务测试'), 
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.purple,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () {
+                                  _showHttpServicesDialog(context);
+                                },
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -1017,6 +1032,16 @@ class CreateView extends GetView<CreateController> {
       context: context,
       builder: (BuildContext dialogContext) {
         return const IpfsInfoDialog(); // 指向我们即将创建的 Dialog Widget
+      },
+    );
+  }
+
+  // --- 新增：显示 HTTP 服务对话框 ---
+  void _showHttpServicesDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return const HttpServicesDialog(); // 指向我们即将创建的 Dialog Widget
       },
     );
   }
@@ -1816,6 +1841,233 @@ class _IpfsInfoDialogState extends State<IpfsInfoDialog> {
         ElevatedButton(
           child: const Text('获取信息'),
           onPressed: _isLoading ? null : _getNodeInfo,
+        ),
+      ],
+    );
+  }
+}
+
+// --- 新增：HTTP 服务测试对话框 ---
+class HttpServicesDialog extends StatefulWidget {
+  const HttpServicesDialog({Key? key}) : super(key: key);
+
+  @override
+  State<HttpServicesDialog> createState() => _HttpServicesDialogState();
+}
+
+class _HttpServicesDialogState extends State<HttpServicesDialog> {
+  final TextEditingController _apiPortController = TextEditingController();
+  final TextEditingController _gatewayPortController = TextEditingController();
+  
+  bool _isStarting = false;
+  bool _isStopping = false;
+  bool _isRunning = false;
+  String? _statusMessage;
+  Map<String, dynamic>? _serviceInfo;
+
+  @override
+  void initState() {
+    super.initState();
+    // 设置默认端口
+    _apiPortController.text = "5001";
+    _gatewayPortController.text = "5002";
+  }
+
+  @override
+  void dispose() {
+    _apiPortController.dispose();
+    _gatewayPortController.dispose();
+    super.dispose();
+  }
+
+  // 启动 HTTP 服务
+  Future<void> _startHttpServices() async {
+    final apiPort = int.tryParse(_apiPortController.text.trim()) ?? 0;
+    final gatewayPort = int.tryParse(_gatewayPortController.text.trim()) ?? 0;
+
+    setState(() {
+      _isStarting = true;
+      _statusMessage = "正在启动 HTTP 服务...";
+      _serviceInfo = null;
+    });
+
+    try {
+      logger.i("调用 startHTTPServices: API端口=$apiPort, 网关端口=$gatewayPort");
+      final String resultJson = await LibgopeedBoot.instance.startHTTPServices(
+        apiPort: apiPort, 
+        gatewayPort: gatewayPort
+      );
+      logger.i("启动结果: $resultJson");
+
+      if (!mounted) return;
+
+      final Map<String, dynamic> result = jsonDecode(resultJson);
+      
+      setState(() {
+        _isStarting = false;
+        _serviceInfo = result;
+        
+        if (result['success'] == true) {
+          _isRunning = true;
+          _statusMessage = "服务启动成功！";
+        } else {
+          _statusMessage = "启动失败: ${result['error'] ?? '未知错误'}";
+        }
+      });
+    } catch (e, stacktrace) {
+      logger.e("启动 HTTP 服务失败", e, stacktrace);
+      if (mounted) {
+        setState(() {
+          _isStarting = false;
+          _statusMessage = "启动服务失败: ${e.toString()}";
+        });
+      }
+    }
+  }
+
+  // 停止 HTTP 服务
+  Future<void> _stopHttpServices() async {
+    setState(() {
+      _isStopping = true;
+      _statusMessage = "正在停止 HTTP 服务...";
+    });
+
+    try {
+      logger.i("调用 stopHTTPServices");
+      await LibgopeedBoot.instance.stopHTTPServices();
+      logger.i("HTTP 服务已停止");
+
+      if (!mounted) return;
+      
+      setState(() {
+        _isStopping = false;
+        _isRunning = false;
+        _serviceInfo = null;
+        _statusMessage = "服务已停止";
+      });
+    } catch (e, stacktrace) {
+      logger.e("停止 HTTP 服务失败", e, stacktrace);
+      if (mounted) {
+        setState(() {
+          _isStopping = false;
+          _statusMessage = "停止服务失败: ${e.toString()}";
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('HTTP 服务测试'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            // 端口输入
+            TextField(
+              controller: _apiPortController,
+              decoration: const InputDecoration(
+                labelText: 'API 端口',
+                hintText: '默认: 5001 (输入0使用默认值)',
+              ),
+              keyboardType: TextInputType.number,
+              enabled: !_isRunning && !_isStarting && !_isStopping,
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _gatewayPortController,
+              decoration: const InputDecoration(
+                labelText: '网关端口',
+                hintText: '默认: 5002 (输入0使用默认值)',
+              ),
+              keyboardType: TextInputType.number,
+              enabled: !_isRunning && !_isStarting && !_isStopping,
+            ),
+            
+            // 状态和服务信息显示
+            const SizedBox(height: 20),
+            if (_isStarting || _isStopping)
+              const CircularProgressIndicator()
+            else if (_statusMessage != null)
+              Text(
+                _statusMessage!,
+                style: TextStyle(
+                  color: _statusMessage!.contains("失败") 
+                      ? Colors.red
+                      : _statusMessage!.contains("成功")
+                        ? Colors.green
+                        : Colors.grey
+                ),
+              ),
+            
+            if (_serviceInfo != null && _serviceInfo!['success'] == true)
+              Padding(
+                padding: const EdgeInsets.only(top: 10.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("API 地址: ${_serviceInfo!['apiAddr'] ?? '未知'}"),
+                    Text("网关地址: ${_serviceInfo!['gatewayAddr'] ?? '未知'}"),
+                    const SizedBox(height: 10),
+                    Text(
+                      "提示: 可以通过浏览器访问 'http://localhost:${_serviceInfo!['gatewayAddr']?.split(':').last ?? '?'}/ipfs/QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG' 测试网关",
+                      style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          child: const Text('关闭'),
+          onPressed: (_isStarting || _isStopping) ? null : () {
+            // 如果服务正在运行，确认是否要关闭
+            if (_isRunning) {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('服务正在运行'),
+                  content: const Text('是否在关闭对话框前停止 HTTP 服务？'),
+                  actions: [
+                    TextButton(
+                      child: const Text('继续运行'),
+                      onPressed: () {
+                        Navigator.of(context).pop(); // 关闭确认对话框
+                        Navigator.of(context).pop(); // 关闭主对话框
+                      },
+                    ),
+                    ElevatedButton(
+                      child: const Text('停止服务'),
+                      onPressed: () async {
+                        Navigator.of(context).pop(); // 关闭确认对话框
+                        await _stopHttpServices();
+                        if (mounted) Navigator.of(context).pop(); // 关闭主对话框
+                      },
+                    ),
+                  ],
+                ),
+              );
+            } else {
+              Navigator.of(context).pop();
+            }
+          },
+        ),
+        if (!_isRunning && !_isStarting && !_isStopping)
+          ElevatedButton(
+            child: const Text('启动服务'),
+            onPressed: _startHttpServices,
+          )
+        else if (_isRunning && !_isStarting && !_isStopping)
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('停止服务'),
+            onPressed: _stopHttpServices,
         ),
       ],
     );

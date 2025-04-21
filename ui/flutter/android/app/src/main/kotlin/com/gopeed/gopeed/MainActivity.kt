@@ -29,7 +29,7 @@ class MainActivity : FlutterActivity() {
                 "start" -> {
                     val cfg = call.argument<String>("cfg")
                     try {
-                         // 调用 Go 生成的绑定代码
+                        // 调用 Go 生成的绑定代码
                         val port = Libgopeed.start(cfg)
                         result.success(port)
                     } catch (e: Exception) {
@@ -37,6 +37,7 @@ class MainActivity : FlutterActivity() {
                         result.error("ERROR", e.message, null)
                     }
                 }
+
                 "stop" -> {
                     // 调用 Go 生成的绑定代码
                     Libgopeed.stop()
@@ -52,7 +53,11 @@ class MainActivity : FlutterActivity() {
                             val success = Libgopeed.initIPFS(repoPath)
                             result.success(success)
                         } catch (e: Exception) {
-                            result.error("IPFS_INIT_ERROR", e.localizedMessage ?: "初始化 IPFS 仓库失败", null)
+                            result.error(
+                                "IPFS_INIT_ERROR",
+                                e.localizedMessage ?: "初始化 IPFS 仓库失败",
+                                null
+                            )
                         }
                     } else {
                         result.error("INVALID_ARGS", "initIPFS 缺少 repoPath 参数", null)
@@ -67,7 +72,11 @@ class MainActivity : FlutterActivity() {
                             val peerId = Libgopeed.startIPFS(repoPath)
                             result.success(peerId)
                         } catch (e: Exception) {
-                            result.error("IPFS_START_ERROR", e.localizedMessage ?: "启动 IPFS 节点失败", null)
+                            result.error(
+                                "IPFS_START_ERROR",
+                                e.localizedMessage ?: "启动 IPFS 节点失败",
+                                null
+                            )
                         }
                     } else {
                         result.error("INVALID_ARGS", "startIPFS 缺少 repoPath 参数", null)
@@ -81,7 +90,11 @@ class MainActivity : FlutterActivity() {
                         // 成功，无数据返回
                         result.success(null)
                     } catch (e: Exception) {
-                        result.error("IPFS_STOP_ERROR", e.localizedMessage ?: "停止 IPFS 节点失败", null)
+                        result.error(
+                            "IPFS_STOP_ERROR",
+                            e.localizedMessage ?: "停止 IPFS 节点失败",
+                            null
+                        )
                     }
                 }
 
@@ -93,7 +106,11 @@ class MainActivity : FlutterActivity() {
                             val cid = Libgopeed.addFileToIPFS(content)
                             result.success(cid)
                         } catch (e: Exception) {
-                            result.error("IPFS_ADD_ERROR", e.localizedMessage ?: "添加文件到 IPFS 失败", null)
+                            result.error(
+                                "IPFS_ADD_ERROR",
+                                e.localizedMessage ?: "添加文件到 IPFS 失败",
+                                null
+                            )
                         }
                     } else {
                         result.error("INVALID_ARGS", "addFileToIPFS 缺少 content 参数", null)
@@ -108,7 +125,11 @@ class MainActivity : FlutterActivity() {
                             val fileContent = Libgopeed.getFileFromIPFS(cid)
                             result.success(fileContent)
                         } catch (e: Exception) {
-                            result.error("IPFS_GET_ERROR", e.localizedMessage ?: "从 IPFS 获取文件失败", null)
+                            result.error(
+                                "IPFS_GET_ERROR",
+                                e.localizedMessage ?: "从 IPFS 获取文件失败",
+                                null
+                            )
                         }
                     } else {
                         result.error("INVALID_ARGS", "getFileFromIPFS 缺少 cid 参数", null)
@@ -121,7 +142,11 @@ class MainActivity : FlutterActivity() {
                         val peerId = Libgopeed.getIPFSPeerID()
                         result.success(peerId)
                     } catch (e: Exception) {
-                        result.error("IPFS_PEERID_ERROR", e.localizedMessage ?: "获取 IPFS Peer ID 失败", null)
+                        result.error(
+                            "IPFS_PEERID_ERROR",
+                            e.localizedMessage ?: "获取 IPFS Peer ID 失败",
+                            null
+                        )
                     }
                 }
 
@@ -140,8 +165,16 @@ class MainActivity : FlutterActivity() {
                             // 注意：不再需要在 Kotlin 端解析 JSON 了，解析工作交给 Dart
 
                         } catch (e: Exception) {
-                             Log.e("GoPeedDebug", "Error in listDirectoryFromIPFS: ${e.localizedMessage}", e)
-                            result.error("IPFS_LIST_ERROR", e.localizedMessage ?: "列出目录失败", e.toString())
+                            Log.e(
+                                "GoPeedDebug",
+                                "Error in listDirectoryFromIPFS: ${e.localizedMessage}",
+                                e
+                            )
+                            result.error(
+                                "IPFS_LIST_ERROR",
+                                e.localizedMessage ?: "列出目录失败",
+                                e.toString()
+                            )
                         }
                     } else {
                         result.error("INVALID_ARGS", "listDirectoryFromIPFS 缺少 cid 参数", null)
@@ -161,13 +194,25 @@ class MainActivity : FlutterActivity() {
                             // --- ---
 
                             // 调用 Go 函数，传递 JSON 字符串
-                            val taskId = Libgopeed.startDownloadSelected(topCid, localBasePath, selectedPathsJson)
+                            val taskId = Libgopeed.startDownloadSelected(
+                                topCid,
+                                localBasePath,
+                                selectedPathsJson
+                            )
                             result.success(taskId) // 返回任务 ID
                         } catch (e: Exception) {
-                            result.error("IPFS_DOWNLOAD_START_ERROR", e.localizedMessage ?: "启动下载任务失败", e.toString()) // 添加详细错误信息
+                            result.error(
+                                "IPFS_DOWNLOAD_START_ERROR",
+                                e.localizedMessage ?: "启动下载任务失败",
+                                e.toString()
+                            ) // 添加详细错误信息
                         }
                     } else {
-                        result.error("INVALID_ARGS", "startDownloadSelected 缺少参数 (topCid, localBasePath, or selectedPaths)", null)
+                        result.error(
+                            "INVALID_ARGS",
+                            "startDownloadSelected 缺少参数 (topCid, localBasePath, or selectedPaths)",
+                            null
+                        )
                     }
                 }
 
@@ -199,11 +244,23 @@ class MainActivity : FlutterActivity() {
                             result.success(resultMap) 
                             --- */
                         } catch (e: Exception) {
-                            Log.e("GoPeedDebug", "Error in queryDownloadProgress: ${e.localizedMessage}", e) // 添加日志
-                            result.error("IPFS_QUERY_PROGRESS_ERROR", e.localizedMessage ?: "查询进度失败", e.toString()) // 添加详细错误信息
+                            Log.e(
+                                "GoPeedDebug",
+                                "Error in queryDownloadProgress: ${e.localizedMessage}",
+                                e
+                            ) // 添加日志
+                            result.error(
+                                "IPFS_QUERY_PROGRESS_ERROR",
+                                e.localizedMessage ?: "查询进度失败",
+                                e.toString()
+                            ) // 添加详细错误信息
                         }
                     } else {
-                        result.error("INVALID_ARGS", "queryDownloadProgress 缺少 downloadID 参数", null)
+                        result.error(
+                            "INVALID_ARGS",
+                            "queryDownloadProgress 缺少 downloadID 参数",
+                            null
+                        )
                     }
                 }
 
@@ -218,14 +275,26 @@ class MainActivity : FlutterActivity() {
                             // 调用 Go 函数，该函数返回 error (在 Kotlin 中表现为可能抛出异常)
                             Libgopeed.downloadAndSaveFile(cid, localFilePath, downloadID)
                             // 如果 Go 函数没有抛出异常，则表示调用成功 (即使下载可能仍在后台进行)
-                            result.success(null) 
+                            result.success(null)
                         } catch (e: Exception) {
                             // 如果 Go 函数返回了 error，会被包装成 Exception 抛出
-                            Log.e("GoPeedDebug", "Error calling downloadAndSaveFile: ${e.localizedMessage}", e)
-                            result.error("IPFS_DOWNLOAD_SAVE_ERROR", e.localizedMessage ?: "调用下载保存失败", e.toString())
+                            Log.e(
+                                "GoPeedDebug",
+                                "Error calling downloadAndSaveFile: ${e.localizedMessage}",
+                                e
+                            )
+                            result.error(
+                                "IPFS_DOWNLOAD_SAVE_ERROR",
+                                e.localizedMessage ?: "调用下载保存失败",
+                                e.toString()
+                            )
                         }
                     } else {
-                        result.error("INVALID_ARGS", "downloadAndSaveFile 缺少参数 (cid, localFilePath, or downloadID)", null)
+                        result.error(
+                            "INVALID_ARGS",
+                            "downloadAndSaveFile 缺少参数 (cid, localFilePath, or downloadID)",
+                            null
+                        )
                     }
                 }
 
@@ -241,7 +310,11 @@ class MainActivity : FlutterActivity() {
                         } catch (e: Exception) {
                             // 理论上 Go 函数设计为不抛出异常，错误信息在 JSON 内
                             // 但以防万一（例如 gomobile 内部错误），还是加上 catch
-                            Log.e("GoPeedDebug", "Unexpected error calling getIpfsNodeInfo: ${e.localizedMessage}", e)
+                            Log.e(
+                                "GoPeedDebug",
+                                "Unexpected error calling getIpfsNodeInfo: ${e.localizedMessage}",
+                                e
+                            )
                             // 返回一个包含错误的 JSON
                             result.success("{\"cid\":\"$cid\", \"type\":\"unknown\", \"error\":\"Native unexpected error: ${e.localizedMessage}\"}")
                         }
@@ -255,14 +328,21 @@ class MainActivity : FlutterActivity() {
                     val apiPort = call.argument<Int>("apiPort") ?: 0
                     val gatewayPort = call.argument<Int>("gatewayPort") ?: 0
                     try {
-                        // 调用 Go 函数，该函数返回 JSON 字符串和 error
-                        val jsonString = Libgopeed.startHTTPServices(apiPort, gatewayPort)
-                        // 直接将 JSON 字符串传递给 Dart
+                        // 将 Int 转换为 Long (.toLong())
+                        val jsonString =
+                            Libgopeed.startHTTPServices(apiPort.toLong(), gatewayPort.toLong())
                         result.success(jsonString)
                     } catch (e: Exception) {
-                        Log.e("GoPeedDebug", "Error starting HTTP services: ${e.localizedMessage}", e)
-                        // 因为我们的 Go 函数即使出错也会返回 JSON，所以这里仅作防御性处理
-                        result.error("HTTP_SERVICES_START_ERROR", e.localizedMessage ?: "启动 HTTP 服务失败", e.toString())
+                        Log.e(
+                            "GoPeedDebug",
+                            "Error starting HTTP services: ${e.localizedMessage}",
+                            e
+                        )
+                        result.error(
+                            "HTTP_SERVICES_START_ERROR",
+                            e.localizedMessage ?: "启动 HTTP 服务失败",
+                            e.toString()
+                        )
                     }
                 }
 
@@ -274,8 +354,16 @@ class MainActivity : FlutterActivity() {
                         // 成功，无数据返回
                         result.success(null)
                     } catch (e: Exception) {
-                        Log.e("GoPeedDebug", "Error stopping HTTP services: ${e.localizedMessage}", e)
-                        result.error("HTTP_SERVICES_STOP_ERROR", e.localizedMessage ?: "停止 HTTP 服务失败", e.toString())
+                        Log.e(
+                            "GoPeedDebug",
+                            "Error stopping HTTP services: ${e.localizedMessage}",
+                            e
+                        )
+                        result.error(
+                            "HTTP_SERVICES_STOP_ERROR",
+                            e.localizedMessage ?: "停止 HTTP 服务失败",
+                            e.toString()
+                        )
                     }
                 }
 
