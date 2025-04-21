@@ -103,4 +103,16 @@ class LibgopeedFFi implements LibgopeedInterface {
     // TODO: implement getIpfsNodeInfo
     throw UnimplementedError();
   }
+
+  @override
+  Future<String> startHTTPServices({int apiPort = 0, int gatewayPort = 0}) {
+    // TODO: implement startHTTPServices
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> stopHTTPServices() {
+    // TODO: implement stopHTTPServices
+    throw UnimplementedError();
+  }
 }

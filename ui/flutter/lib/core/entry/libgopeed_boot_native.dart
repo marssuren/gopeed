@@ -121,4 +121,16 @@ class LibgopeedBootNative implements LibgopeedBoot {
     // 将调用委托给内部的 _libgopeed 实例
     return _libgopeed.getIpfsNodeInfo(cid);
   }
+
+  @override
+  Future<String> startHTTPServices({int apiPort = 0, int gatewayPort = 0}) {
+    // 将调用委托给内部的 _libgopeed 实例
+    return _libgopeed.startHTTPServices(apiPort: apiPort, gatewayPort: gatewayPort);
+  }
+
+  @override
+  Future<void> stopHTTPServices() {
+    // 将调用委托给内部的 _libgopeed 实例
+    return _libgopeed.stopHTTPServices();
+  }
 }

@@ -174,4 +174,30 @@ class LibgopeedChannel implements LibgopeedInterface {
       return '{\"cid\":\"$cid\", \"type\":\"unknown\", \"error\":\"PlatformException: ${e.code} - ${e.message}\"}';
     }
   }
+
+  @override
+  Future<String> startHTTPServices({int apiPort = 0, int gatewayPort = 0}) async {
+    try {
+      final String? jsonString = await _channel.invokeMethod(
+          'startHTTPServices', {'apiPort': apiPort, 'gatewayPort': gatewayPort});
+      if (jsonString == null || jsonString.isEmpty) {
+        return '{\"success\":false, \"error\":\"Native returned null response\"}';
+      }
+      return jsonString;
+    } on PlatformException catch (e) {
+      print("Error starting HTTP services: ${e.code} - ${e.message}");
+      // 返回包含错误的 JSON
+      return '{\"success\":false, \"error\":\"PlatformException: ${e.code} - ${e.message}\"}';
+    }
+  }
+
+  @override
+  Future<void> stopHTTPServices() async {
+    try {
+      await _channel.invokeMethod('stopHTTPServices');
+    } on PlatformException catch (e) {
+      print("Error stopping HTTP services: ${e.code} - ${e.message}");
+      rethrow;
+    }
+  }
 }

@@ -22,4 +22,8 @@ abstract class LibgopeedInterface {
   Future<String> queryDownloadProgress(String downloadID);
   Future<void> downloadAndSaveFile(String cid, String localFilePath, String downloadID);
   Future<String> getIpfsNodeInfo(String cid);
+  
+  // 启动 HTTP 服务，可选指定 API 端口和网关端口（0表示使用默认值）
+  Future<String> startHTTPServices({int apiPort = 0, int gatewayPort = 0});
+  Future<void> stopHTTPServices();
 }

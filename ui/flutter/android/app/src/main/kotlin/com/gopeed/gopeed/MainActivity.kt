@@ -250,6 +250,35 @@ class MainActivity : FlutterActivity() {
                     }
                 }
 
+                // --- 新增：处理 startHTTPServices ---
+                "startHTTPServices" -> {
+                    val apiPort = call.argument<Int>("apiPort") ?: 0
+                    val gatewayPort = call.argument<Int>("gatewayPort") ?: 0
+                    try {
+                        // 调用 Go 函数，该函数返回 JSON 字符串和 error
+                        val jsonString = Libgopeed.startHTTPServices(apiPort, gatewayPort)
+                        // 直接将 JSON 字符串传递给 Dart
+                        result.success(jsonString)
+                    } catch (e: Exception) {
+                        Log.e("GoPeedDebug", "Error starting HTTP services: ${e.localizedMessage}", e)
+                        // 因为我们的 Go 函数即使出错也会返回 JSON，所以这里仅作防御性处理
+                        result.error("HTTP_SERVICES_START_ERROR", e.localizedMessage ?: "启动 HTTP 服务失败", e.toString())
+                    }
+                }
+
+                // --- 新增：处理 stopHTTPServices ---
+                "stopHTTPServices" -> {
+                    try {
+                        // 调用 Go 函数，该函数只返回 error
+                        Libgopeed.stopHTTPServices()
+                        // 成功，无数据返回
+                        result.success(null)
+                    } catch (e: Exception) {
+                        Log.e("GoPeedDebug", "Error stopping HTTP services: ${e.localizedMessage}", e)
+                        result.error("HTTP_SERVICES_STOP_ERROR", e.localizedMessage ?: "停止 HTTP 服务失败", e.toString())
+                    }
+                }
+
                 // --- ---
 
                 // --- 默认情况 ---
