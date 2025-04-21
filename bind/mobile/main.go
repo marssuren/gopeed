@@ -5,8 +5,11 @@ import "C"
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,7 +21,10 @@ import (
 
 	"github.com/ipfs/boxo/files"
 	ipfspath "github.com/ipfs/boxo/path"
+	"github.com/ipfs/kubo/commands" // 注意这里是 commands 不是 oldcmds
+	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
+	"github.com/ipfs/kubo/core/corehttp"
 	coreiface "github.com/ipfs/kubo/core/coreiface" // <--- 导入 coreiface
 
 	// <--- 需要导入 object 包
@@ -36,6 +42,11 @@ var (
 	// 用于存储下载进度的并发安全 Map
 	// key: string (downloadID), value: *DownloadProgress
 	downloadProgressMap sync.Map
+
+	// --- 用于存储 HTTP 服务器 Listener ---
+	apiListener     net.Listener
+	gatewayListener net.Listener
+	httpServerMu    sync.Mutex // Mutex to protect listeners
 )
 
 // DirectoryEntry 表示 IPFS 目录中的一个条目
@@ -177,18 +188,217 @@ func StartIPFS(repoPath string) (string, error) {
 	return ipfsNode.PeerHost().ID().String(), nil
 }
 
-// StopIPFS 停止IPFS节点
+const (
+	defaultAPIPort     = 5001
+	defaultGatewayPort = 5002
+)
+
+// StartHTTPServicesResult 定义了返回给 gomobile 的结果结构
+type StartHTTPServicesResult struct {
+	Success     bool   `json:"success"`
+	ApiAddr     string `json:"apiAddr"`
+	GatewayAddr string `json:"gatewayAddr"`
+	Error       string `json:"error,omitempty"` // JSON中包含错误信息，方便调试
+}
+
+// StartHTTPServices 启动HTTP API和网关服务，接受端口参数（0表示默认），并返回 JSON 结果和 error
+// 使用全局的 ipfsNode
+func StartHTTPServices(apiPort int, gatewayPort int) (string, error) {
+	httpServerMu.Lock() // Lock before accessing/modifying listeners
+	defer httpServerMu.Unlock()
+
+	// 检查服务是否已运行
+	if apiListener != nil || gatewayListener != nil {
+		err := fmt.Errorf("HTTP 服务已在运行中")
+		result := StartHTTPServicesResult{
+			Success: false,
+			// 尝试返回当前监听的地址（如果存在）
+			ApiAddr:     safeGetListenerAddr(apiListener),
+			GatewayAddr: safeGetListenerAddr(gatewayListener),
+			Error:       err.Error(),
+		}
+		jsonData, _ := json.Marshal(result)
+		return string(jsonData), err
+	}
+
+	// 处理默认端口
+	effectiveAPIPort := apiPort
+	if effectiveAPIPort <= 0 {
+		effectiveAPIPort = defaultAPIPort
+	}
+	effectiveGatewayPort := gatewayPort
+	if effectiveGatewayPort <= 0 {
+		effectiveGatewayPort = defaultGatewayPort
+	}
+
+	// 构建监听地址字符串 (用于返回结果)
+	apiAddrStr := fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", effectiveAPIPort)
+	gatewayAddrStr := fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", effectiveGatewayPort)
+
+	result := StartHTTPServicesResult{
+		Success:     false,
+		ApiAddr:     apiAddrStr,
+		GatewayAddr: gatewayAddrStr,
+	}
+
+	// 内部函数，用于简化 JSON 返回
+	marshalResult := func(res StartHTTPServicesResult) string {
+		jsonData, _ := json.Marshal(res)
+		return string(jsonData)
+	}
+
+	// 检查全局 ipfsNode 是否有效
+	if ipfsNode == nil || ipfsNode.IpfsNode == nil {
+		err := fmt.Errorf("全局 IPFS 节点未初始化或无效")
+		result.Error = err.Error()
+		apiListener = nil //确保出错时 listener 为 nil
+		return marshalResult(result), err
+	}
+
+	node := ipfsNode.IpfsNode
+
+	// --- 创建 Listener ---
+	var apiErr, gatewayErr error
+	apiListener, apiErr = net.Listen("tcp", fmt.Sprintf(":%d", effectiveAPIPort))
+	if apiErr != nil {
+		finalErr := fmt.Errorf("无法监听 API 端口 %d: %w", effectiveAPIPort, apiErr)
+		result.Error = finalErr.Error()
+		apiListener = nil //确保出错时 listener 为 nil
+		return marshalResult(result), finalErr
+	}
+	// 更新结果中的地址为实际监听地址
+	result.ApiAddr = fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", apiListener.Addr().(*net.TCPAddr).Port)
+
+	gatewayListener, gatewayErr = net.Listen("tcp", fmt.Sprintf(":%d", effectiveGatewayPort))
+	if gatewayErr != nil {
+		_ = apiListener.Close() // 如果网关监听失败，关闭已成功的 API listener
+		apiListener = nil
+		gatewayListener = nil
+		finalErr := fmt.Errorf("无法监听 Gateway 端口 %d: %w", effectiveGatewayPort, gatewayErr)
+		result.Error = finalErr.Error()
+		return marshalResult(result), finalErr
+	}
+	// 更新结果中的地址为实际监听地址
+	result.GatewayAddr = fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", gatewayListener.Addr().(*net.TCPAddr).Port)
+
+	// --- 配置和启动 Server ---
+	cmdCtx := &commands.Context{
+		ConfigRoot:    node.Repo.Path(),
+		ConstructNode: func() (*core.IpfsNode, error) { return node, nil },
+	}
+
+	// API Server
+	apiOpts := []corehttp.ServeOption{
+		corehttp.CommandsOption(*cmdCtx),
+		corehttp.WebUIOption,
+		corehttp.GatewayOption("/ipfs", "/ipns"),
+		corehttp.VersionOption(),
+	}
+	// apiServer := &http.Server{} // No need to create server instance here
+	go func() {
+		// Call Serve without the http.Server argument
+		err := corehttp.Serve(node, apiListener, apiOpts...)                                       // Pass options directly
+		if err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, http.ErrServerClosed) { // More robust error check
+			fmt.Printf("API HTTP 服务错误: %v\n", err)
+			// Potentially signal error globally
+		}
+	}()
+
+	// Gateway Server
+	gatewayOpts := []corehttp.ServeOption{
+		corehttp.GatewayOption("/ipfs", "/ipns"),
+		corehttp.VersionOption(),
+	}
+	// gatewayServer := &http.Server{} // No need to create server instance here
+	go func() {
+		// Call Serve without the http.Server argument
+		err := corehttp.Serve(node, gatewayListener, gatewayOpts...)                               // Pass options directly
+		if err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, http.ErrServerClosed) { // More robust error check
+			fmt.Printf("Gateway HTTP 服务错误: %v\n", err)
+			// Potentially signal error globally
+		}
+	}()
+
+	result.Success = true
+	return marshalResult(result), nil // 启动成功
+}
+
+// StopHTTPServices 停止由 StartHTTPServices 启动的 API 和网关服务
+func StopHTTPServices() error {
+	httpServerMu.Lock()
+	defer httpServerMu.Unlock()
+
+	var firstErr error
+
+	if apiListener != nil {
+		fmt.Println("正在关闭 API HTTP 服务...")
+		err := apiListener.Close()
+		apiListener = nil // 清理引用
+		if err != nil {
+			fmt.Printf("关闭 API Listener 出错: %v\n", err)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("关闭 API 服务失败: %w", err)
+			}
+		} else {
+			fmt.Println("API HTTP 服务已关闭。")
+		}
+	}
+
+	if gatewayListener != nil {
+		fmt.Println("正在关闭 Gateway HTTP 服务...")
+		err := gatewayListener.Close()
+		gatewayListener = nil // 清理引用
+		if err != nil {
+			fmt.Printf("关闭 Gateway Listener 出错: %v\n", err)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("关闭 Gateway 服务失败: %w", err)
+			}
+		} else {
+			fmt.Println("Gateway HTTP 服务已关闭。")
+		}
+	}
+
+	return firstErr // 返回遇到的第一个错误
+}
+
+// safeGetListenerAddr 安全地获取 Listener 的地址字符串
+func safeGetListenerAddr(l net.Listener) string {
+	if l == nil {
+		return ""
+	}
+	addr, ok := l.Addr().(*net.TCPAddr)
+	if !ok {
+		return l.Addr().String() // Fallback
+	}
+	return fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", addr.Port)
+}
+
+// StopIPFS 停止IPFS节点 (也应该考虑停止相关服务)
 func StopIPFS() error {
+	// --- 优先停止依赖于节点的服务 ---
+	if err := StopHTTPServices(); err != nil {
+		fmt.Printf("停止 HTTP 服务时遇到错误 (将继续停止 IPFS 节点): %v\n", err)
+		// 决定是否因为 HTTP 服务停止失败而阻止 IPFS 节点停止
+		// return fmt.Errorf("无法停止 HTTP 服务: %w", err) // 如果需要强依赖
+	}
+	// --- ---
+
 	if ipfsNode != nil {
-		err := ipfsNode.IpfsNode.Close()
-		ipfsNode = nil
+		fmt.Println("正在关闭 IPFS 核心节点...")
+		err := ipfsNode.IpfsNode.Close() // Close the core node first
+		ipfsNode = nil                   // Clear the global reference
 		if ipfsCancel != nil {
 			ipfsCancel()
 			ipfsCancel = nil
 		}
-		return err
+		if err != nil {
+			fmt.Printf("关闭 IPFS 核心节点出错: %v\n", err)
+			return err // Return the error from closing the node
+		}
+		fmt.Println("IPFS 核心节点已关闭。")
+		return nil
 	}
-	return nil
+	return nil // Node was not running
 }
 
 // AddFileToIPFS 添加文件内容到IPFS
