@@ -1,3 +1,7 @@
 [submodule "external/gomobile_ipfs_0"]
 	path = external/gomobile_ipfs_0
 	url = https://github.com/marssuren/gomobile_ipfs_0.git
+[submodule "external/go-libp2p"]
+	path = external/go-libp2p
+	url = https://github.com/marssuren/go-libp2p.git
+	branch = master

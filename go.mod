@@ -335,4 +335,4 @@ require (
 
 replace github.com/marssuren/gomobile_ipfs_0 => ./external/gomobile_ipfs_0
 
-replace github.com/libp2p/go-libp2p => github.com/marssuren/go-libp2p v0.0.0-20250421133258-ca96a23e8fc5
+replace github.com/libp2p/go-libp2p => ./external/go-libp2p
