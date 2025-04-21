@@ -174,9 +174,9 @@ func StartIPFS(repoPath string) (string, error) {
 		ExtraOpts: map[string]bool{
 			"pubsub":                    true,
 			"ipnsps":                    true,
-			"DisableInterfaceDiscovery": true, // 禁用自动发现可用的网络接口(移动端权限受限)
-			// "enableRelayHop":            false, // 不作为中继(节约资源)
-			// "enableAutoRelay":           true,  // 使用中继服务(帮助穿透NAT)
+			"DisableInterfaceDiscovery": true,  // 禁用自动发现可用的网络接口(移动端权限受限)
+			"enableRelayHop":            false, // 不作为中继(节约资源)
+			"enableAutoRelay":           true,  // 使用中继服务(帮助穿透NAT)
 		},
 	}
 
