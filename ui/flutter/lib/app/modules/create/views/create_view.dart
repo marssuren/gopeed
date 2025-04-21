@@ -15,6 +15,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io'; 
 import 'dart:async'; // 导入 Timer
 import 'dart:convert'; // 导入 jsonDecode
+import 'package:http/http.dart' as http; // 添加 http 包导入
 
 import '../../../../api/api.dart';
 import '../../../../api/model/create_task.dart';
@@ -732,6 +733,21 @@ class CreateView extends GetView<CreateController> {
                                 },
                               ),
                             ),
+                            // 新增按钮：测试网关访问
+                            Padding(
+                              padding: const EdgeInsets.only(top: 10.0), 
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.public),
+                                label: Text('网关访问测试'), 
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.deepOrange,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () {
+                                  _showGatewayAccessDialog(context);
+                                },
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -1042,6 +1058,16 @@ class CreateView extends GetView<CreateController> {
       context: context,
       builder: (BuildContext dialogContext) {
         return const HttpServicesDialog(); // 指向我们即将创建的 Dialog Widget
+      },
+    );
+  }
+
+  // --- 新增：显示网关访问测试对话框 ---
+  void _showGatewayAccessDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return const GatewayAccessDialog(); // 指向我们即将创建的 Dialog Widget
       },
     );
   }
@@ -2068,6 +2094,231 @@ class _HttpServicesDialogState extends State<HttpServicesDialog> {
             ),
             child: const Text('停止服务'),
             onPressed: _stopHttpServices,
+        ),
+      ],
+    );
+  }
+}
+
+// --- 新增：网关访问测试对话框 ---
+class GatewayAccessDialog extends StatefulWidget {
+  const GatewayAccessDialog({Key? key}) : super(key: key);
+
+  @override
+  State<GatewayAccessDialog> createState() => _GatewayAccessDialogState();
+}
+
+class _GatewayAccessDialogState extends State<GatewayAccessDialog> {
+  final TextEditingController _gatewayUrlController = TextEditingController();
+  final TextEditingController _cidController = TextEditingController();
+  bool _isLoading = false;
+  String? _statusMessage;
+  String? _contentPreview;
+  
+  // 预设的公开CID列表
+  final List<Map<String, String>> _presetCids = [
+    {"name": "IPFS欢迎目录", "cid": "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG", "type": "目录"},
+    {"name": "IPFS简介文本", "cid": "QmPZ9gcCEpqKTo6aq61g2nXGUhM4iCL3ewB6LDXZCtioEB", "type": "文本"},
+    {"name": "简单文本示例", "cid": "QmZULkCELmmk5XNfCgTnCyFgAVxBRBXyDHGGMVoLFLiXEN", "type": "文本"},
+    {"name": "IPFS Logo", "cid": "QmRZz5A6MSmyYRcgPAcFgrXV43eSLEYxQDSqjrZHN64dXq", "type": "图片"},
+    {"name": "全球天气数据(JSON)", "cid": "QmVMUu2eRtKrJ9xMo9HXgWQTVYYyK8PR9NJ6MQiVJJHofH", "type": "JSON"},
+    {"name": "工具箱应用", "cid": "QmVW8T9gxA6rjHE7TBDK9Wq7VyLu4HPvuwLYYg1SgcZnBk", "type": "应用"},
+    {"name": "互动游戏示例", "cid": "QmWM33UD77H1UPh1NRJXr7HZ3x7kA8sV9KDXeFJqVuDUoM", "type": "HTML5游戏"},
+  ];
+  
+  String? _selectedCidName;
+
+  @override
+  void initState() {
+    super.initState();
+    _gatewayUrlController.text = "http://localhost:5002";
+    _cidController.text = "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG"; // IPFS示例目录
+    _selectedCidName = "IPFS欢迎目录"; // 默认选中第一个
+  }
+
+  @override
+  void dispose() {
+    _gatewayUrlController.dispose();
+    _cidController.dispose();
+    super.dispose();
+  }
+
+  // 当用户从下拉菜单选择预设CID时调用
+  void _onPresetCidSelected(String? name) {
+    if (name == null) return;
+    
+    setState(() {
+      _selectedCidName = name;
+      // 查找对应的CID
+      final selectedItem = _presetCids.firstWhere(
+        (item) => item["name"] == name,
+        orElse: () => {"name": "", "cid": "", "type": ""}
+      );
+      _cidController.text = selectedItem["cid"] ?? "";
+    });
+  }
+
+  Future<void> _accessIpfsContent() async {
+    final gatewayUrl = _gatewayUrlController.text.trim();
+    final cid = _cidController.text.trim();
+    
+    if (gatewayUrl.isEmpty || cid.isEmpty) {
+      setState(() {
+        _statusMessage = "请输入网关地址和CID。";
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _statusMessage = "正在通过网关访问内容...";
+      _contentPreview = null;
+    });
+
+    try {
+      // 构建访问URL: 网关地址 + /ipfs/ + CID
+      // 确保网关URL末尾没有斜杠
+      final baseUrl = gatewayUrl.endsWith("/") 
+          ? gatewayUrl.substring(0, gatewayUrl.length - 1) 
+          : gatewayUrl;
+      
+      final ipfsUrl = "$baseUrl/ipfs/$cid";
+      logger.i("尝试通过网关访问IPFS内容: $ipfsUrl");
+      
+      final response = await http.get(Uri.parse(ipfsUrl));
+      
+      if (response.statusCode == 200) {
+        // 尝试识别内容类型
+        final contentType = response.headers['content-type'] ?? '';
+        final bytes = response.bodyBytes;
+        
+        String preview;
+        if (contentType.contains('text') || contentType.contains('json')) {
+          // 文本内容
+          try {
+            // 如果内容太长，只显示前1000个字符
+            preview = (bytes.length > 1000) 
+                ? utf8.decode(bytes.sublist(0, 1000)) + "..." 
+                : utf8.decode(bytes);
+          } catch (e) {
+            preview = "无法解码文本内容: ${e.toString()}";
+          }
+        } else if (contentType.contains('image')) {
+          // 图片
+          preview = "[图片内容] - 大小: ${bytes.length} 字节";
+        } else {
+          // 其他内容
+          preview = "[二进制内容] - 大小: ${bytes.length} 字节";
+        }
+
+        setState(() {
+          _isLoading = false;
+          _statusMessage = "内容获取成功！类型: $contentType";
+          _contentPreview = preview;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+          _statusMessage = "获取内容失败，状态码: ${response.statusCode}";
+        });
+      }
+    } catch (e) {
+      logger.e("网关访问失败", e);
+      setState(() {
+        _isLoading = false;
+        _statusMessage = "网关访问失败: ${e.toString()}";
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('网关访问测试'),
+      content: Container(
+        width: MediaQuery.of(context).size.width * 0.8,
+        height: MediaQuery.of(context).size.height * 0.6,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            TextField(
+              controller: _gatewayUrlController,
+              decoration: const InputDecoration(
+                labelText: '网关地址',
+                hintText: '例如 http://localhost:5002',
+              ),
+              enabled: !_isLoading,
+            ),
+            const SizedBox(height: 10),
+            // 添加预设CID下拉菜单
+            DropdownButtonFormField<String>(
+              decoration: const InputDecoration(
+                labelText: '预设CID示例',
+                hintText: '选择一个示例CID',
+              ),
+              value: _selectedCidName,
+              onChanged: !_isLoading ? _onPresetCidSelected : null,
+              items: _presetCids.map((item) {
+                return DropdownMenuItem<String>(
+                  value: item["name"],
+                  child: Text("${item["name"]} (${item["type"]})"),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _cidController,
+              decoration: const InputDecoration(
+                labelText: 'IPFS CID',
+                hintText: '例如 QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG',
+              ),
+              enabled: !_isLoading,
+            ),
+            const SizedBox(height: 20),
+            if (_isLoading)
+              const CircularProgressIndicator()
+            else if (_statusMessage != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Text(
+                  _statusMessage!,
+                  style: TextStyle(
+                    color: _statusMessage!.contains("失败") ? Colors.red : Colors.green,
+                  ),
+                ),
+              ),
+            
+            // 内容预览
+            if (_contentPreview != null)
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 10),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      _contentPreview!,
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          child: const Text('获取内容'),
+          onPressed: _isLoading ? null : _accessIpfsContent,
+        ),
+        TextButton(
+          child: const Text('关闭'),
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
         ),
       ],
     );

@@ -172,8 +172,11 @@ func StartIPFS(repoPath string) (string, error) {
 	ipfsConfig := &ipfs.IpfsConfig{
 		RepoMobile: repo.Mobile(),
 		ExtraOpts: map[string]bool{
-			"pubsub": true,
-			"ipnsps": true,
+			"pubsub":                    true,
+			"ipnsps":                    true,
+			"DisableInterfaceDiscovery": true, // 禁用自动发现可用的网络接口(移动端权限受限)
+			// "enableRelayHop":            false, // 不作为中继(节约资源)
+			// "enableAutoRelay":           true,  // 使用中继服务(帮助穿透NAT)
 		},
 	}
 
