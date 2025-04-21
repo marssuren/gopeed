@@ -23,6 +23,7 @@ require (
 	go.etcd.io/bbolt v1.3.11
 	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa
 	golang.org/x/sync v0.13.0
+	golang.org/x/mobile v0.0.0-20250408133729-978277e7eaf7
 )
 
 require (
