@@ -246,7 +246,10 @@ command:
 - android
 
 ```bash
+# 在根目录下
 gomobile bind -tags nosqlite -ldflags="-w -s -checklinkname=0" -o ui/flutter/android/app/libs/libgopeed.aar -target=android -androidapi 21 -javapkg="com.gopeed" github.com/GopeedLab/gopeed/bind/mobile
+# 在bind/mobile目录下
+gomobile bind -tags nosqlite -ldflags="-w -s -checklinkname=0" -o ../../ui/flutter/android/app/libs/libgopeed.aar -target=android -androidapi 21 -javapkg="com.gopeed" .
 cd ui/flutter
 flutter build apk
 ```
