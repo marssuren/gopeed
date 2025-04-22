@@ -188,6 +188,10 @@ func StartIPFS(repoPath string) (string, error) {
 	// 创建IPFS节点配置
 	ipfsConfig := &ipfs.IpfsConfig{
 		RepoMobile: repo.Mobile(),
+		HostConfig: &ipfs.HostConfig{
+			// 应用我们上面定义的选项
+			Options: libp2pOpts,
+		},
 		ExtraOpts: map[string]bool{
 			"pubsub":                    true,
 			"ipnsps":                    true,
