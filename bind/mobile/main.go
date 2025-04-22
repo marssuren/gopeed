@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/ipfs/kubo/core/corehttp"
 	coreiface "github.com/ipfs/kubo/core/coreiface" // <--- 导入 coreiface
 	"github.com/ipfs/kubo/core/coreiface/options"
+	p2p "github.com/libp2p/go-libp2p" // 导入 libp2p
 	ipfs "github.com/marssuren/gomobile_ipfs_0/go/bind/core"
 )
 
@@ -162,6 +164,25 @@ func StartIPFS(repoPath string) (string, error) {
 	repo, err := ipfs.OpenRepo(repoPath)
 	if err != nil {
 		return "", err
+	}
+
+	libp2pOpts := []p2p.Option{}
+	if runtime.GOOS == "android" {
+		// --- BEGIN MODIFICATION ---
+		// 显式指定只监听回环地址
+		libp2pOpts = append(libp2pOpts, p2p.ListenAddrStrings(
+			"/ip4/127.0.0.1/tcp/0",
+			"/ip4/127.0.0.1/udp/0/quic-v1", // 假设你使用了QUIC
+			// 根据需要可以加上IPv6回环
+			// "/ip6/::1/tcp/0",
+			// "/ip6/::1/udp/0/quic-v1",
+		))
+		// 显式禁用默认监听地址
+		libp2pOpts = append(libp2pOpts, p2p.NoListenAddrs)
+		// --- END MODIFICATION ---
+
+		// mdns 禁用的选项我们还没找到正确的，暂时注释掉
+		// libp2pOpts = append(libp2pOpts, /* 正确的禁用 mDNS 选项 */)
 	}
 
 	// 创建IPFS节点配置
