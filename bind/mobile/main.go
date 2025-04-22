@@ -284,6 +284,7 @@ func StartHTTPServices(apiPort int, gatewayPort int) (string, error) {
 	cmdCtx := &commands.Context{
 		ConfigRoot:    node.Repo.Path(),
 		ConstructNode: func() (*core.IpfsNode, error) { return node, nil },
+		ReqLog:        &commands.ReqLog{},
 	}
 
 	// API Server
