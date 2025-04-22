@@ -5,3 +5,9 @@
 	path = external/go-libp2p
 	url = https://github.com/marssuren/go-libp2p.git
 	branch = master
+[submodule "external/go-netroute"]
+	path = external/go-netroute
+	url = https://github.com/marssuren/go-netroute.git
+[submodule "external/zeroconf_v2"]
+	path = external/zeroconf_v2
+	url = https://github.com/libp2p/zeroconf.git

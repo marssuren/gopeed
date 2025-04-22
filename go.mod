@@ -336,3 +336,5 @@ require (
 replace github.com/marssuren/gomobile_ipfs_0 => ./external/gomobile_ipfs_0
 
 replace github.com/libp2p/go-libp2p => ./external/go-libp2p
+replace github.com/libp2p/go-netroute => ./external/go-netroute
+replace github.com/libp2p/zeroconf/v2 => ./external/zeroconf_v2
