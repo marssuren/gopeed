@@ -21,6 +21,7 @@ import (
 
 	"github.com/ipfs/boxo/files"
 	ipfspath "github.com/ipfs/boxo/path"
+	logging "github.com/ipfs/go-log"
 	"github.com/ipfs/kubo/commands"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
@@ -131,6 +132,13 @@ func Stop() {
 
 // InitIPFS 初始化IPFS仓库
 func InitIPFS(repoPath string) (bool, error) {
+	// 打开 Bitswap 相关日志
+	logging.SetLogLevel("bitswap", "DEBUG")
+	// 打开 Bitswap 网络层日志
+	logging.SetLogLevel("bitswap.network", "DEBUG")
+	// 如果想看 DHT 查找提供者的过程，也可以打开
+	logging.SetLogLevel("dht", "DEBUG")
+
 	// 检查仓库是否已初始化
 	_, err := ipfs.OpenRepo(repoPath)
 
