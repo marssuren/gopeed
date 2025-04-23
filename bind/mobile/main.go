@@ -32,6 +32,9 @@ import (
 )
 
 func init() {
+	// 打印进入这段代码的log
+	fmt.Println("进入这段代码")
+
 	// 打开 Bitswap 相关日志
 	logging.SetLogLevel("bitswap", "DEBUG")
 	// 打开 Bitswap 网络层日志
