@@ -11,3 +11,6 @@
 [submodule "external/zeroconf_v2"]
 	path = external/zeroconf_v2
 	url = https://github.com/libp2p/zeroconf.git
+[submodule "external/kubo"]
+	path = external/kubo
+	url = https://github.com/marssuren/kubo.git
