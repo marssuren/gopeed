@@ -38,6 +38,8 @@ func init() {
 	logging.SetLogLevel("bitswap.network", "DEBUG")
 	// 如果想看 DHT 查找提供者的过程，也可以打开
 	logging.SetLogLevel("dht", "DEBUG")
+	// 打开 Gateway 相关日志
+	logging.SetLogLevel("gateway", "DEBUG")
 }
 
 // 全局变量，保存IPFS节点和上下文
