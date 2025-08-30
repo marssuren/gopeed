@@ -145,6 +145,8 @@ func Stop() {
 //
 
 // InitIPFS 初始化IPFS仓库
+//
+//export InitIPFS
 func InitIPFS(repoPath string) (bool, error) {
 
 	// 检查仓库是否已初始化
@@ -170,6 +172,8 @@ func InitIPFS(repoPath string) (bool, error) {
 }
 
 // StartIPFS 启动IPFS节点
+//
+//export StartIPFS
 func StartIPFS(repoPath string) (string, error) {
 	// 创建上下文
 	ipfsContext, ipfsCancel = context.WithCancel(context.Background())
