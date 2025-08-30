@@ -11,7 +11,8 @@ require (
 	github.com/go-git/go-git/v5 v5.8.1
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.1
-	github.com/ipfs/boxo v0.29.1
+	github.com/ipfs/boxo v0.29.2-0.20250415191135-dc60fe747c37
+	github.com/ipfs/go-log v1.0.5
 	github.com/ipfs/kubo v0.34.1
 	github.com/marssuren/gomobile_ipfs_0/go v0.0.0-20250414135803-985bdef7442e
 	github.com/matoous/go-nanoid/v2 v2.0.0
@@ -22,7 +23,6 @@ require (
 	github.com/xiaoqidun/setft v0.0.0-20220310121541-be86327699ad
 	go.etcd.io/bbolt v1.3.11
 	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa
-	golang.org/x/mobile v0.0.0-20250408133729-978277e7eaf7
 	golang.org/x/sync v0.13.0
 )
 
@@ -108,7 +108,6 @@ require (
 	github.com/ipfs/go-ipld-format v0.6.0 // indirect
 	github.com/ipfs/go-ipld-git v0.1.1 // indirect
 	github.com/ipfs/go-ipld-legacy v0.2.1 // indirect
-	github.com/ipfs/go-log v1.0.5 // indirect
 	github.com/ipfs/go-log/v2 v2.5.1 // indirect
 	github.com/ipfs/go-merkledag v0.11.0 // indirect
 	github.com/ipfs/go-metrics-interface v0.3.0 // indirect
@@ -336,6 +335,9 @@ require (
 replace github.com/marssuren/gomobile_ipfs_0 => ./external/gomobile_ipfs_0
 
 replace github.com/libp2p/go-libp2p => ./external/go-libp2p
+
 replace github.com/libp2p/go-netroute => ./external/go-netroute
+
 replace github.com/libp2p/zeroconf/v2 => ./external/zeroconf_v2
+
 replace github.com/ipfs/kubo => ./external/kubo
