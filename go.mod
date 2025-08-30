@@ -23,7 +23,7 @@ require (
 	github.com/xiaoqidun/setft v0.0.0-20220310121541-be86327699ad
 	go.etcd.io/bbolt v1.3.11
 	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa
-	golang.org/x/sync v0.13.0
+	golang.org/x/sync v0.16.0
 )
 
 require (
@@ -218,6 +218,7 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	go.uber.org/zap/exp v0.3.0 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
+	golang.org/x/mobile v0.0.0-20250813145510-f12310a0cfd9 // indirect
 	golang.org/x/oauth2 v0.24.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
@@ -316,13 +317,13 @@ require (
 	go.opentelemetry.io/otel v1.34.0 // indirect
 	go.opentelemetry.io/otel/metric v1.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
-	golang.org/x/crypto v0.37.0 // indirect
-	golang.org/x/mod v0.24.0 // indirect
-	golang.org/x/net v0.39.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
+	golang.org/x/crypto v0.41.0 // indirect
+	golang.org/x/mod v0.27.0 // indirect
+	golang.org/x/net v0.43.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
-	golang.org/x/tools v0.32.0 // indirect
+	golang.org/x/tools v0.36.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	lukechampine.com/blake3 v1.4.0 // indirect
 	modernc.org/libc v1.61.0 // indirect
@@ -341,3 +342,5 @@ replace github.com/libp2p/go-netroute => ./external/go-netroute
 replace github.com/libp2p/zeroconf/v2 => ./external/zeroconf_v2
 
 replace github.com/ipfs/kubo => ./external/kubo
+
+replace github.com/marssuren/gomobile_ipfs_0/go => ./external/gomobile_ipfs_0/go
